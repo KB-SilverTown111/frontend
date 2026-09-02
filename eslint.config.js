@@ -19,7 +19,10 @@ export default [
     rules: {
       'vue/html-closing-bracket-newline': 'off',
       'vue/html-indent': 'off',
+      'vue/html-self-closing': 'off',
+      'vue/multiline-html-element-content-newline': 'off',
       'vue/multi-word-component-names': ['error', { ignores: ['App'] }],
+      'vue/singleline-html-element-content-newline': 'off',
     },
   },
 ]
