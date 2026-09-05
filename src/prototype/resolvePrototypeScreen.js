@@ -10,3 +10,16 @@ export async function resolvePrototypeScreen(flowKey, screenId) {
 
   return { index, screen: screens[index], screens }
 }
+
+export function buildPrototypeNavigation(flowKey, screens, index) {
+  const screenRoute = (screen) => ({
+    name: 'prototype-screen',
+    params: { flow: flowKey, screenId: screen.id },
+  })
+
+  return {
+    previous: index > 0 ? screenRoute(screens[index - 1]) : { name: 'prototype-index' },
+    next:
+      index < screens.length - 1 ? screenRoute(screens[index + 1]) : { name: 'prototype-index' },
+  }
+}

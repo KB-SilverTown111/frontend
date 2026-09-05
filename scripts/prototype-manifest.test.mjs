@@ -3,7 +3,10 @@ import test from 'node:test'
 
 import helpScreen from '../src/prototype/data/help.js'
 import { loadFlow, prototypeFlows } from '../src/prototype/prototypeFlows.js'
-import { resolvePrototypeScreen } from '../src/prototype/resolvePrototypeScreen.js'
+import {
+  buildPrototypeNavigation,
+  resolvePrototypeScreen,
+} from '../src/prototype/resolvePrototypeScreen.js'
 
 test('prototype manifest contains 109 flow screens plus help', async () => {
   const groups = await Promise.all(prototypeFlows.map(({ key }) => loadFlow(key)))
@@ -27,4 +30,19 @@ test('resolver returns screen position and rejects unknown routes', async () => 
   assert.equal(result.screen.title, '시작하기')
   assert.equal(result.index, 0)
   assert.equal(await resolvePrototypeScreen('missing', '1-01'), null)
+})
+
+test('navigation stays inside a flow and returns to the index at its boundaries', async () => {
+  const screens = await loadFlow('onboarding')
+
+  assert.deepEqual(buildPrototypeNavigation('onboarding', screens, 0), {
+    previous: { name: 'prototype-index' },
+    next: {
+      name: 'prototype-screen',
+      params: { flow: 'onboarding', screenId: '1-02' },
+    },
+  })
+  assert.deepEqual(buildPrototypeNavigation('onboarding', screens, screens.length - 1).next, {
+    name: 'prototype-index',
+  })
 })
