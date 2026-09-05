@@ -44,3 +44,14 @@ export async function loadFlow(flowKey) {
   const module = await flow.load()
   return module.default
 }
+
+export function getPrototypeStartRoute(flowKey) {
+  const flow = prototypeFlows.find(({ key }) => key === flowKey)
+
+  if (!flow) return { name: 'prototype-index' }
+
+  return {
+    name: 'prototype-screen',
+    params: { flow: flow.key, screenId: flow.firstScreenId },
+  }
+}

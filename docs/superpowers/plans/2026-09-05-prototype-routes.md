@@ -24,6 +24,7 @@
 ### Task 1: Prototype Data and Resolver
 
 **Files:**
+
 - Create: `src/prototype/prototypeFlows.js`
 - Create: `src/prototype/resolvePrototypeScreen.js`
 - Create: `src/prototype/data/onboarding.js`
@@ -36,6 +37,7 @@
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Produces: `prototypeFlows: Array<{ key, label, count, firstScreenId, load }>`
 - Produces: `loadFlow(flowKey): Promise<Array<PrototypeScreen>>`
 - Produces: `resolvePrototypeScreen(flowKey, screenId): Promise<{ screen, screens, index } | null>`
@@ -98,11 +100,41 @@ Generate counts of 21 onboarding, 31 transfer, 23 bills, 26 living, and 8 voice 
 
 ```js
 export const prototypeFlows = [
-  { key: 'onboarding', label: '온보딩', count: 21, firstScreenId: '1-01', load: () => import('./data/onboarding.js') },
-  { key: 'transfer', label: '송금', count: 31, firstScreenId: '2-01', load: () => import('./data/transfer.js') },
-  { key: 'bills', label: '고지서', count: 23, firstScreenId: '3-01', load: () => import('./data/bills.js') },
-  { key: 'living', label: '생활금융', count: 26, firstScreenId: '4-01', load: () => import('./data/living.js') },
-  { key: 'voice', label: '공통 음성', count: 8, firstScreenId: '5-01', load: () => import('./data/voice.js') },
+  {
+    key: 'onboarding',
+    label: '온보딩',
+    count: 21,
+    firstScreenId: '1-01',
+    load: () => import('./data/onboarding.js'),
+  },
+  {
+    key: 'transfer',
+    label: '송금',
+    count: 31,
+    firstScreenId: '2-01',
+    load: () => import('./data/transfer.js'),
+  },
+  {
+    key: 'bills',
+    label: '고지서',
+    count: 23,
+    firstScreenId: '3-01',
+    load: () => import('./data/bills.js'),
+  },
+  {
+    key: 'living',
+    label: '생활금융',
+    count: 26,
+    firstScreenId: '4-01',
+    load: () => import('./data/living.js'),
+  },
+  {
+    key: 'voice',
+    label: '공통 음성',
+    count: 8,
+    firstScreenId: '5-01',
+    load: () => import('./data/voice.js'),
+  },
 ]
 ```
 
@@ -126,6 +158,7 @@ git commit -m ":sparkles: Feat: 프로토타입 화면 데이터 추가"
 ### Task 2: Shared Mobile Screen Renderer
 
 **Files:**
+
 - Create: `src/components/prototype/MobileScreenShell.vue`
 - Create: `src/components/prototype/ScreenContent.vue`
 - Create: `src/views/PrototypeScreenView.vue`
@@ -133,6 +166,7 @@ git commit -m ":sparkles: Feat: 프로토타입 화면 데이터 추가"
 - Modify: `src/styles/globals.css`
 
 **Interfaces:**
+
 - Consumes: `resolvePrototypeScreen(flowKey, screenId)`
 - Produces: route view accepting `route.params.flow` and `route.params.screenId`
 - Produces: shell events `back`, `help`, `primary`, `secondary`, and tab navigation
@@ -186,6 +220,7 @@ git commit -m ":sparkles: Feat: 공통 프로토타입 화면 렌더러 추가"
 ### Task 3: Index, Design-System Preservation, and Router
 
 **Files:**
+
 - Create: `src/views/PrototypeIndexView.vue`
 - Create: `src/views/PrototypeHelpView.vue`
 - Create: `src/views/DesignSystemView.vue`
@@ -193,6 +228,7 @@ git commit -m ":sparkles: Feat: 공통 프로토타입 화면 렌더러 추가"
 - Modify: `src/router/index.js`
 
 **Interfaces:**
+
 - Consumes: `prototypeFlows`
 - Produces routes: `prototype-index`, `prototype-help`, `prototype-screen`, `design-system`
 
@@ -219,10 +255,26 @@ Render `help.js` through the same `MobileScreenShell` and `ScreenContent`; back 
 ```js
 const routes = [
   { path: '/', redirect: '/prototype' },
-  { path: '/prototype', name: 'prototype-index', component: () => import('@/views/PrototypeIndexView.vue') },
-  { path: '/prototype/help', name: 'prototype-help', component: () => import('@/views/PrototypeHelpView.vue') },
-  { path: '/prototype/:flow/:screenId', name: 'prototype-screen', component: () => import('@/views/PrototypeScreenView.vue') },
-  { path: '/design-system', name: 'design-system', component: () => import('@/views/DesignSystemView.vue') },
+  {
+    path: '/prototype',
+    name: 'prototype-index',
+    component: () => import('@/views/PrototypeIndexView.vue'),
+  },
+  {
+    path: '/prototype/help',
+    name: 'prototype-help',
+    component: () => import('@/views/PrototypeHelpView.vue'),
+  },
+  {
+    path: '/prototype/:flow/:screenId',
+    name: 'prototype-screen',
+    component: () => import('@/views/PrototypeScreenView.vue'),
+  },
+  {
+    path: '/design-system',
+    name: 'design-system',
+    component: () => import('@/views/DesignSystemView.vue'),
+  },
   { path: '/:pathMatch(.*)*', redirect: '/prototype' },
 ]
 ```
@@ -241,9 +293,11 @@ git commit -m ":sparkles: Feat: 프로토타입 라우터 연결"
 ### Task 4: Full Verification
 
 **Files:**
+
 - Modify only files required by verification findings.
 
 **Interfaces:**
+
 - Consumes all prior tasks.
 - Produces a buildable, navigable prototype.
 

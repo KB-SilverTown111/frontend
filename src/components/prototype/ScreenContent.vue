@@ -11,11 +11,13 @@ defineProps({
   >
     <h1>{{ screen.title }}</h1>
     <p class="sub">{{ screen.description }}</p>
-    <!-- eslint-disable-next-line vue/no-v-html -->
+    <!-- Content is generated from the bundled, reviewed prototype manifest. -->
+    <!-- eslint-disable vue/no-v-html -->
     <div
       class="content"
       v-html="screen.contentHtml"
     />
+    <!-- eslint-enable vue/no-v-html -->
     <p
       v-if="screen.variant === 'warning'"
       class="sr-only"

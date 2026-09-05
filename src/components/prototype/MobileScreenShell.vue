@@ -14,13 +14,6 @@ defineEmits(['back', 'help', 'primary', 'secondary'])
 <template>
   <div class="prototype-stage">
     <article class="prototype-device">
-      <div
-        class="prototype-status"
-        aria-hidden="true"
-      >
-        <span>9:41</span><span>● ● ●</span>
-      </div>
-
       <header class="prototype-nav">
         <Button
           aria-label="이전 화면"

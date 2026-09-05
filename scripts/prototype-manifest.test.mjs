@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import helpScreen from '../src/prototype/data/help.js'
-import { loadFlow, prototypeFlows } from '../src/prototype/prototypeFlows.js'
+import {
+  getPrototypeStartRoute,
+  loadFlow,
+  prototypeFlows,
+} from '../src/prototype/prototypeFlows.js'
 import {
   buildPrototypeNavigation,
   resolvePrototypeScreen,
@@ -45,4 +49,12 @@ test('navigation stays inside a flow and returns to the index at its boundaries'
   assert.deepEqual(buildPrototypeNavigation('onboarding', screens, screens.length - 1).next, {
     name: 'prototype-index',
   })
+})
+
+test('flow start routes point to each configured first screen', () => {
+  assert.deepEqual(getPrototypeStartRoute('bills'), {
+    name: 'prototype-screen',
+    params: { flow: 'bills', screenId: '3-01' },
+  })
+  assert.deepEqual(getPrototypeStartRoute('missing'), { name: 'prototype-index' })
 })

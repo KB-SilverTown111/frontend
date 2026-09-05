@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './prototype.css';
+@import './onboarding.css';
 
 @font-face {
   font-family: 'Pretendard Variable';

@@ -20,25 +20,14 @@
   box-shadow: 0 24px 70px rgb(23 63 82 / 16%);
 }
 
-.prototype-status {
-  height: 38px;
-  flex: 0 0 38px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 11px 22px 0;
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .prototype-nav {
   position: relative;
-  height: 60px;
-  flex: 0 0 60px;
+  height: calc(60px + env(safe-area-inset-top));
+  flex: 0 0 calc(60px + env(safe-area-inset-top));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 18px;
+  padding: calc(6px + env(safe-area-inset-top)) 18px 6px;
   border-bottom: 1px solid var(--border);
 }
 

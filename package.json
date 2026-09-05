@@ -13,6 +13,7 @@
     "lint:fix": "eslint . --fix",
     "prepare": "husky",
     "preview": "vite preview",
+    "test:onboarding": "node --test scripts/onboarding-*.test.mjs",
     "test:prototype": "node --test scripts/prototype-manifest.test.mjs"
   },
   "lint-staged": {
@@ -23,6 +24,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "pinia": "^4.0.2",
