@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare": "husky",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:prototype": "node --test scripts/prototype-manifest.test.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,vue}": [
