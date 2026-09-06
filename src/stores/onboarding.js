@@ -6,7 +6,6 @@ import { onboardingApi } from '../api/onboarding.js'
 import {
   buildLoginRequest,
   buildSignUpRequest,
-  buildVoiceSettingsRequest,
   createOnboardingDraft,
   validateStep,
 } from '../features/onboarding/contract.js'
@@ -52,15 +51,6 @@ export const useOnboardingStore = defineStore('onboarding', {
       try {
         const authResult = await onboardingApi.signup(buildSignUpRequest(this.draft))
         await this.persistAuthSession(authResult)
-
-        try {
-          this.voiceResult = await onboardingApi.saveVoiceSettings(
-            buildVoiceSettingsRequest(this.draft),
-            authResult.accessToken,
-          )
-        } catch {
-          this.voiceWarning = '음성 설정은 가입 후 다시 저장할 수 있어요.'
-        }
 
         this.status = 'success'
         return { ok: true }

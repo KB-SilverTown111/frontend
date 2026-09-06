@@ -81,10 +81,10 @@ export default [
     id: '2-07',
     number: '2-07',
     title: '금액 재확인',
-    description: '유사 발음 금액은 한 번 더 묻습니다.',
+    description: '보낼 금액을 입력하고 한 번 더 확인합니다.',
     contentHtml:
-      '<div class="amount"><small>확인할 금액</small><strong>50,000원?</strong></div><div class="choices"><div class="choice active"><span>오만원</span><i>✓</i></div><div class="choice "><span>오십만원</span><i></i></div></div><div class="note"><b>안내</b><span>선택 전에는 다음 단계로 이동하지 않습니다.</span></div>',
-    primaryLabel: '오만원이 맞아요',
+      '<div class="amount"><small>확인할 금액</small><strong>입력한 금액을 확인해 주세요</strong></div>',
+    primaryLabel: '이 금액이 맞아요',
     secondaryLabel: '',
     variant: 'default',
     showHelp: true,

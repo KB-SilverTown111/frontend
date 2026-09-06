@@ -11,17 +11,20 @@ const props = defineProps({
   variant: { type: String, default: 'default' },
 })
 
-const variants = cva('relative w-full rounded-lg border p-4 text-[15px] leading-relaxed', {
-  variants: {
-    variant: {
-      default: 'bg-card text-foreground',
-      success: 'border-primary bg-muted text-[#315a49]',
-      warning: 'border-[#efd67b] bg-[#fff9df] text-[#6a5a18]',
-      destructive: 'border-[#edb8b4] bg-[#fff0ef] text-destructive',
+const variants = cva(
+  'relative w-full rounded-xl border-2 p-5 text-[length:var(--font-size-body)] leading-relaxed',
+  {
+    variants: {
+      variant: {
+        default: 'bg-card text-foreground',
+        success: 'border-primary bg-muted text-[#315a49]',
+        warning: 'border-[#efd67b] bg-[#fff9df] text-[#6a5a18]',
+        destructive: 'border-[#edb8b4] bg-[#fff0ef] text-destructive',
+      },
     },
+    defaultVariants: { variant: 'default' },
   },
-  defaultVariants: { variant: 'default' },
-})
+)
 
 const classes = computed(() => cn(variants({ variant: props.variant }), props.class))
 </script>

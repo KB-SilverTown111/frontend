@@ -89,10 +89,9 @@ function startVoiceTransfer() {
           >
             <RouterLink
               :to="{ name: 'transfer-screen', params: { screenId: '2-02' } }"
-              class="transfer-choice selected"
+              class="transfer-choice"
             >
               <span>송금하기</span>
-              <b>✓</b>
             </RouterLink>
             <RouterLink
               :to="{ name: 'bills-home' }"
@@ -115,7 +114,7 @@ function startVoiceTransfer() {
 
       <nav
         aria-label="주요 메뉴"
-        class="app-bottom-nav three-items transfer-bottom-nav"
+        class="app-bottom-nav four-items transfer-bottom-nav"
       >
         <RouterLink
           :to="{ name: 'transfer-home' }"
@@ -125,6 +124,7 @@ function startVoiceTransfer() {
         </RouterLink>
         <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
         <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
+        <RouterLink :to="{ name: 'my-page' }">마이페이지</RouterLink>
       </nav>
     </article>
   </div>

@@ -19,26 +19,51 @@ export const useTransferStore = defineStore('transfer', () => {
   const authentication = ref(null)
   const validation = ref(null)
   const result = ref(null)
+  const riskCleared = ref(false)
+  const confirmationCompleted = ref(false)
+  const authenticationCompleted = ref(false)
+  const executeIdempotencyKey = ref('')
   const error = ref(null)
   const busy = ref(false)
 
-  /**
-   * 실행 재시도에 같은 키를 써야 거래가 중복 생성되지 않는다.
-   * 초안이 새로 만들어질 때만 새 키를 발급한다.
-   */
-  let executionKey = ''
-
-  const recipientName = computed(() => selectedRecipient.value?.displayName ?? '')
-  /** 서버가 승인한 거래만 실행 단계로 넘어간다. */
+  // These aliases keep older service-route integrations source-compatible while
+  // the canonical flow uses selectedRecipient/fromAccount/candidates.
+  const recipient = computed({
+    get: () => selectedRecipient.value,
+    set: (value) => {
+      selectedRecipient.value = value ?? null
+    },
+  })
+  const selectedAccount = computed({
+    get: () => fromAccount.value,
+    set: (value) => {
+      fromAccount.value = value ?? null
+    },
+  })
+  const recipientCandidates = computed(() => candidates.value)
+  const recipientName = computed(
+    () => selectedRecipient.value?.displayName || selectedRecipient.value?.name || '',
+  )
   const executable = computed(() => Boolean(confirmation.value?.executable))
-  /** PIN 인증이 통과해야 실행할 수 있다. */
   const authenticated = computed(() => Boolean(authentication.value?.authenticated))
   const amountReconfirmRequired = computed(() =>
     Boolean(validation.value?.amountReconfirmRequired ?? prepared.value?.amountReconfirmRequired),
   )
+
+  function recipientIdOf(value) {
+    return value?.recipientId ?? value?.id ?? ''
+  }
+
+  function accountIdOf(value) {
+    const candidate = value?.accountId ?? value?.id ?? value
+    return typeof candidate === 'string' || typeof candidate === 'number' ? candidate : ''
+  }
+
   const readyToPrepare = computed(() =>
     Boolean(
-      selectedRecipient.value?.recipientId && fromAccount.value?.accountId && draftAmount.value > 0,
+      recipientIdOf(selectedRecipient.value) &&
+      accountIdOf(fromAccount.value) &&
+      Number(draftAmount.value) > 0,
     ),
   )
 
@@ -61,29 +86,42 @@ export const useTransferStore = defineStore('transfer', () => {
     return response
   }
 
-  /** 후보를 자동 확정하지 않는다. 사용자가 직접 고른다. */
+  function candidatesOf(response) {
+    if (Array.isArray(response)) return response
+    if (Array.isArray(response?.candidates)) return response.candidates
+    if (Array.isArray(response?.items)) return response.items
+    return []
+  }
+
+  /** 후보를 자동 확정하지 않는다. 사용자가 직접 고른 뒤에만 다음 단계로 간다. */
   async function findRecipients(request) {
     const response = await run(() => transfersApi.candidates(request))
-    candidates.value = Array.isArray(response) ? response : []
+    candidates.value = candidatesOf(response)
     selectedRecipient.value = null
     return candidates.value
   }
 
+  function clearRecipientSelection() {
+    selectedRecipient.value = null
+    candidates.value = []
+  }
+
   function selectRecipient(candidate) {
-    selectedRecipient.value = candidate ?? null
+    if (!recipientIdOf(candidate)) throw new Error('받는 분 정보를 다시 선택해 주세요.')
+    selectedRecipient.value = candidate
   }
 
   function selectAccount(account) {
-    fromAccount.value = account ?? null
+    if (!accountIdOf(account)) throw new Error('출금 계좌를 다시 선택해 주세요.')
+    fromAccount.value = account
   }
 
   function setAmount(value) {
     const parsed = Number(String(value ?? '').replace(/[^0-9]/g, ''))
-    draftAmount.value = Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    draftAmount.value = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
     return draftAmount.value
   }
 
-  /** 유사 발음 금액 검증. 후보가 여럿이면 서버가 재확인을 요구한다. */
   async function validateAmount(request) {
     const payload = request ?? {
       recognizedAmount: draftAmount.value,
@@ -98,38 +136,58 @@ export const useTransferStore = defineStore('transfer', () => {
     return response
   }
 
-  /** 선택한 수취인·계좌·금액으로 송금 초안을 만든다. */
-  async function prepare(request) {
-    const payload = request ?? {
-      fromAccountId: fromAccount.value?.accountId,
-      recipientId: selectedRecipient.value?.recipientId,
-      amount: draftAmount.value,
-    }
-    if (sessionId.value) payload.voiceSessionId = sessionId.value
-
-    const response = await run(() => transfersApi.prepare(payload))
-    prepared.value = response
+  function resetFinancialExecutionState() {
+    riskCleared.value = false
+    confirmationCompleted.value = false
+    authenticationCompleted.value = false
+    executeIdempotencyKey.value = ''
     confirmation.value = null
     authentication.value = null
+  }
+
+  /** 선택한 수취인·계좌·금액으로 송금 초안을 만든다. */
+  async function prepare(request) {
+    const fromAccountId = accountIdOf(request?.fromAccountId ?? fromAccount.value)
+    const recipientId = request?.recipientId ?? recipientIdOf(selectedRecipient.value)
+    const transferAmount = Number(request?.amount ?? draftAmount.value ?? amount.value)
+    if (!fromAccountId) throw new Error('출금 계좌를 선택해 주세요.')
+    if (!recipientId) throw new Error('받는 분을 선택해 주세요.')
+    if (!Number.isFinite(transferAmount) || transferAmount <= 0) {
+      throw new Error('보낼 금액을 확인해 주세요.')
+    }
+
+    const payload = { fromAccountId, recipientId, amount: transferAmount }
+    if (request?.voiceSessionId) payload.voiceSessionId = request.voiceSessionId
+    else if (sessionId.value) payload.voiceSessionId = sessionId.value
+
+    const response = await run(() => transfersApi.prepare(payload))
+    resetFinancialExecutionState()
+    prepared.value = response
     transferId.value = response?.transferId ?? ''
-    amount.value = response?.amount ?? payload.amount ?? amount.value
-    executionKey = createIdempotencyKey()
+    amount.value = response?.amount ?? transferAmount
+    draftAmount.value = amount.value
+    executeIdempotencyKey.value = createIdempotencyKey()
     return response
   }
 
   async function load(transfer = transferId.value) {
     const response = await run(() => transfersApi.get(transfer))
+    resetFinancialExecutionState()
     prepared.value = response
     transferId.value = response?.transferId ?? transfer
     amount.value = response?.amount ?? amount.value
+    draftAmount.value = amount.value
+    executeIdempotencyKey.value = createIdempotencyKey()
     return response
   }
 
-  /** 승인하면 서버가 executable을 내려준다. 별도 토큰은 발급하지 않는다. */
+  /** 승인하면 서버가 executable을 내려준다. */
   async function confirm(request = { approved: true }) {
     const response = await run(() => transfersApi.confirm(transferId.value, request))
     confirmation.value = response
+    confirmationCompleted.value = Boolean(response?.executable)
     authentication.value = null
+    authenticationCompleted.value = false
     prepared.value = { ...prepared.value, ...response }
     return response
   }
@@ -138,6 +196,7 @@ export const useTransferStore = defineStore('transfer', () => {
   async function authenticate(request) {
     const response = await run(() => transfersApi.authenticate(transferId.value, request))
     authentication.value = response
+    authenticationCompleted.value = Boolean(response?.authenticated)
     return response
   }
 
@@ -145,10 +204,7 @@ export const useTransferStore = defineStore('transfer', () => {
     return normalizeApiError({ response: { data: { code, message } } })
   }
 
-  /**
-   * 서버 승인과 PIN 인증이 모두 끝난 경우에만 실행한다.
-   * 배포 계약상 본문은 없고 Idempotency-Key 헤더만 보낸다.
-   */
+  /** 서버 승인과 PIN 인증이 모두 끝난 경우에만 실행한다. */
   async function execute(request = {}, options = {}) {
     if (!executable.value) {
       error.value = localError(
@@ -161,11 +217,14 @@ export const useTransferStore = defineStore('transfer', () => {
       error.value = localError('TRANSFER_NOT_AUTHENTICATED', '비밀번호 확인이 필요해요.')
       throw error.value
     }
+    if (!executeIdempotencyKey.value) {
+      executeIdempotencyKey.value = options.idempotencyKey || createIdempotencyKey()
+    }
 
     const response = await run(() =>
       transfersApi.execute(transferId.value, request, {
         ...options,
-        idempotencyKey: options.idempotencyKey ?? executionKey,
+        idempotencyKey: executeIdempotencyKey.value,
       }),
     )
     result.value = response
@@ -175,17 +234,40 @@ export const useTransferStore = defineStore('transfer', () => {
   async function cancel() {
     const response = await run(() => transfersApi.cancel(transferId.value))
     prepared.value = response
-    confirmation.value = null
-    authentication.value = null
+    resetFinancialExecutionState()
     return response
   }
 
   async function assessRisk() {
-    return run(() => transfersApi.riskScore({ transferId: transferId.value }))
+    if (riskCleared.value) return { cleared: true }
+    const response = await run(() => transfersApi.riskScore({ transferId: transferId.value }))
+    riskCleared.value = !isRiskHeld(response) && !needsAdditionalRiskCheck(response)
+    return response
   }
 
   async function checkRisk(request = {}) {
-    return run(() => transfersApi.riskCheck({ transferId: transferId.value, ...request }))
+    const response = await run(() =>
+      transfersApi.riskCheck({ transferId: transferId.value, ...request }),
+    )
+    riskCleared.value = !isRiskHeld(response) && !needsAdditionalRiskCheck(response)
+    return response
+  }
+
+  function isRiskHeld(response) {
+    return (
+      response?.hold === true ||
+      response?.recommendedAction === 'HOLD' ||
+      response?.action === 'HOLD'
+    )
+  }
+
+  function needsAdditionalRiskCheck(response) {
+    return Boolean(
+      response?.additionalCheckRequired ||
+      response?.requiresAdditionalCheck ||
+      response?.verificationRequired ||
+      response?.requiresVerification,
+    )
   }
 
   function reset() {
@@ -201,9 +283,9 @@ export const useTransferStore = defineStore('transfer', () => {
     authentication.value = null
     validation.value = null
     result.value = null
+    resetFinancialExecutionState()
     error.value = null
     busy.value = false
-    executionKey = ''
   }
 
   return {
@@ -219,8 +301,15 @@ export const useTransferStore = defineStore('transfer', () => {
     authentication,
     validation,
     result,
+    riskCleared,
+    confirmationCompleted,
+    authenticationCompleted,
+    executeIdempotencyKey,
     error,
     busy,
+    recipient,
+    selectedAccount,
+    recipientCandidates,
     recipientName,
     executable,
     authenticated,
@@ -228,6 +317,7 @@ export const useTransferStore = defineStore('transfer', () => {
     readyToPrepare,
     startSession,
     findRecipients,
+    clearRecipientSelection,
     selectRecipient,
     selectAccount,
     setAmount,
@@ -240,6 +330,8 @@ export const useTransferStore = defineStore('transfer', () => {
     cancel,
     assessRisk,
     checkRisk,
+    isRiskHeld,
+    needsAdditionalRiskCheck,
     reset,
   }
 })

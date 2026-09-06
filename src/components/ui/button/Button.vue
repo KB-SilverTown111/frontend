@@ -15,19 +15,19 @@ const props = defineProps({
 })
 
 const variants = cva(
-  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-bold transition-colors disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl font-extrabold transition-colors disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        secondary: 'border bg-secondary text-secondary-foreground hover:bg-muted',
+        secondary: 'border-2 bg-secondary text-secondary-foreground hover:bg-muted',
         ghost: 'text-foreground hover:bg-muted',
         destructive: 'bg-destructive text-white hover:bg-destructive/90',
       },
       size: {
-        default: 'min-h-14 px-6 text-[17px]',
-        sm: 'min-h-11 px-4 text-[15px]',
-        icon: 'size-12 rounded-full text-xl',
+        default: 'min-h-16 px-6 text-[length:var(--font-size-action)]',
+        sm: 'min-h-12 px-4 text-[18px]',
+        icon: 'size-12 rounded-xl text-2xl',
       },
     },
     defaultVariants: { size: 'default', variant: 'default' },

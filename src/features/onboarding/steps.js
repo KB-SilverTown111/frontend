@@ -13,6 +13,35 @@ export const ONBOARDING_STEPS = Object.freeze([
 
 export const ONBOARDING_PROGRESS_TOTAL = 10
 
+const ONBOARDING_DISPLAY_PROGRESS = Object.freeze({
+  'consent-overview': 1,
+  'consent-optional': 1,
+  'mydata-consent': 1,
+  'ai-voice-consent': 1,
+  'basic-info': 2,
+  'missing-fields': 2,
+  'resident-number': 3,
+  address: 4,
+  'address-not-found': 4,
+  'bank-account': 5,
+  'bank-select': 5,
+  'account-error': 5,
+  phone: 6,
+  'emergency-contact': 7,
+  permissions: 7,
+  'microphone-denied': 7,
+  'notification-denied': 7,
+})
+
+export const ONBOARDING_DISPLAY_PROGRESS_TOTAL = 7
+
+export function getOnboardingDisplayProgress(stepId) {
+  const current = ONBOARDING_DISPLAY_PROGRESS[stepId]
+  if (!current) return null
+
+  return { current, total: ONBOARDING_DISPLAY_PROGRESS_TOTAL }
+}
+
 export function getOnboardingStep(stepId) {
   return ONBOARDING_STEPS.find(({ id }) => id === stepId) ?? null
 }

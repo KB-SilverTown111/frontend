@@ -8,11 +8,12 @@ defineProps({
   secondaryLabel: { type: String, default: '' },
   busy: Boolean,
   hideBack: Boolean,
+  progress: { type: Object, default: null },
   bottomNav: { type: String, default: '' },
   errorMessage: { type: String, default: '' },
 })
 
-defineEmits(['back', 'home', 'bills', 'living', 'primary', 'secondary'])
+defineEmits(['back', 'home', 'bills', 'living', 'mypage', 'primary', 'secondary'])
 </script>
 
 <template>
@@ -42,6 +43,26 @@ defineEmits(['back', 'home', 'bills', 'living', 'primary', 'secondary'])
       </header>
 
       <main class="app-main onboarding-main">
+        <div
+          v-if="progress"
+          class="onboarding-progress"
+          role="progressbar"
+          :aria-label="`가입 진행 ${progress.current}단계 / ${progress.total}단계`"
+          :aria-valuemax="progress.total"
+          aria-valuemin="0"
+          :aria-valuenow="progress.current"
+        >
+          <div class="onboarding-progress-track">
+            <span
+              class="onboarding-progress-value"
+              :style="{ width: `${(progress.current / progress.total) * 100}%` }"
+            />
+          </div>
+          <span class="onboarding-progress-label">
+            {{ progress.current }} / {{ progress.total }}
+          </span>
+        </div>
+
         <section class="screen-heading">
           <h1>{{ title }}</h1>
           <p v-if="description">{{ description }}</p>
@@ -82,7 +103,7 @@ defineEmits(['back', 'home', 'bills', 'living', 'primary', 'secondary'])
       <nav
         v-if="bottomNav"
         class="app-bottom-nav"
-        :class="{ 'three-items': bottomNav === 'service' }"
+        :class="{ 'four-items': bottomNav === 'service' }"
         aria-label="주요 메뉴"
       >
         <button
@@ -105,6 +126,13 @@ defineEmits(['back', 'home', 'bills', 'living', 'primary', 'secondary'])
           @click="$emit('living')"
         >
           <span>○</span>생활금융
+        </button>
+        <button
+          v-if="bottomNav === 'service'"
+          type="button"
+          @click="$emit('mypage')"
+        >
+          <span>●</span>마이페이지
         </button>
       </nav>
     </article>

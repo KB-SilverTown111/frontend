@@ -22,6 +22,10 @@ const routeViewSource = readFileSync(
   new URL('../src/views/ServiceRouteView.vue', import.meta.url),
   'utf8',
 )
+const serviceStyleSource = readFileSync(
+  new URL('../src/styles/transfer.css', import.meta.url),
+  'utf8',
+)
 
 const expectedScreenCounts = {
   transfer: 30,
@@ -96,9 +100,168 @@ test('home actions point to production detail routes', () => {
   assert.match(serviceHomeSource, /voice-screen/)
 })
 
-test('production route screen is not implemented with prototype views', () => {
-  assert.doesNotMatch(routeViewSource, /PrototypeScreenView|prototype-stage|ScreenContent/)
-  assert.match(routeViewSource, /v-html="screen\.contentHtml"/)
+test('production route screen does not use prototype-only components', () => {
+  assert.doesNotMatch(
+    routeViewSource,
+    /Prototype(Index|Help|Screen)View|MobileScreenShell|ScreenContent/,
+  )
+  assert.match(
+    routeViewSource,
+    /v-html="stripProductionSelectionIndicators\(screen\.contentHtml\)"/,
+  )
   assert.match(routeViewSource, /service-route-screen-content/)
   assert.match(routeViewSource, /getProductionActionRoutes/)
+})
+
+test('production bill route captures an image and binds it to a BILL_PAYMENT session for OCR', () => {
+  assert.match(routeViewSource, /takeBillPhoto\(source\)/)
+  assert.match(routeViewSource, /photoToBlob\(photo\)/)
+  assert.match(routeViewSource, /startSession\('BILL_PAYMENT'\)/)
+  assert.match(routeViewSource, /billStore\.upload\(\{\s*image,\s*voiceSessionId,\s*\}\)/)
+  assert.match(routeViewSource, /await billStore\.upload\([\s\S]*?screenId: '3-04'/)
+})
+
+test('production transfer route requires candidate selection and prepares only supported transfer data', () => {
+  assert.match(routeViewSource, /v-model="recipientKeyword"/)
+  assert.match(routeViewSource, /@input="clearRecipientCandidates"/)
+  assert.match(routeViewSource, /recipientKeyword\.value\.trim\(\)/)
+  assert.match(routeViewSource, /findRecipients\(\{\s*keyword,/)
+  assert.match(routeViewSource, /transferStore\.selectRecipient/)
+  assert.match(routeViewSource, /transferStore\.selectAccount/)
+  assert.match(
+    routeViewSource,
+    /transferStore\.prepare\(\{[\s\S]*fromAccountId:[\s\S]*recipientId:[\s\S]*amount:/,
+  )
+  assert.match(routeViewSource, /v-if="service === 'transfer' && screenId === '2-07'"/)
+  assert.match(routeViewSource, /v-model="transferAmountInput"/)
+  assert.match(routeViewSource, /recognizedAmount: transferAmount/)
+  assert.match(routeViewSource, /amountCandidates: \[transferAmount\]/)
+  assert.match(routeViewSource, /amount: confirmedAmount/)
+  assert.doesNotMatch(routeViewSource, /recognizedAmount: 50000|amountCandidates: \[50000\]/)
+  assert.match(
+    routeViewSource,
+    /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-18' \} \}\)/,
+  )
+  assert.match(
+    routeViewSource,
+    /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-08' \} \}\)/,
+  )
+  assert.doesNotMatch(routeViewSource, /guardian-verifications|requestGuardianVerification/)
+})
+
+test('transfer confirmation renders the prepared recipient, amount, and masked account instead of prototype data', () => {
+  assert.match(routeViewSource, /transferSummaryRows/)
+  assert.match(routeViewSource, /recipient\.accountNumberMasked/)
+  assert.match(routeViewSource, /formatCurrency\(transferStore\.amount\)/)
+  assert.match(routeViewSource, /account\.accountNumberMasked/)
+  assert.match(
+    routeViewSource,
+    /screen\?\.contentHtml[\s\S]*service === 'transfer' && screenId === '2-08'[\s\S]*!hideScreenActions/,
+  )
+})
+
+test('transfer entry clears stale state and a direct final-confirmation URL is blocked without a transfer', () => {
+  assert.match(
+    routeViewSource,
+    /currentService === 'transfer' && currentScreenId === '2-02'[\s\S]*transferStore\.reset\(\)[\s\S]*recipientKeyword\.value = ''/,
+  )
+  assert.match(
+    routeViewSource,
+    /service\.value === 'transfer' && screenId\.value === '2-08' && !transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
+  )
+  assert.match(
+    routeViewSource,
+    /service\.value === 'transfer' && screenId\.value === '2-09' && !transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
+  )
+})
+
+test('active reminder queries use the supported SCHEDULED status', () => {
+  assert.match(serviceHomeSource, /loadReminders\(\{ status: 'SCHEDULED' \}\)/)
+  assert.match(routeViewSource, /loadReminders\(\{ status: 'SCHEDULED' \}\)/)
+})
+
+test('transfer risk clearance skips rescoring after a safe risk check', () => {
+  assert.match(routeViewSource, /if \(!transferStore\.riskCleared\)/)
+  assert.match(routeViewSource, /transferStore\.isRiskHeld\(risk\)[\s\S]*screenId: '2-10'/)
+  assert.match(routeViewSource, /warningText[\s\S]*risk\?\.warning/)
+  assert.match(routeViewSource, /confirmationCompleted/)
+  assert.match(routeViewSource, /authenticationCompleted/)
+  assert.match(routeViewSource, /추가 확인이 필요해 송금을 진행할 수 없어요\./)
+})
+
+test('bill home reads the backend monthly totalCount field before legacy fallbacks', () => {
+  assert.match(serviceHomeSource, /monthlySummary\.totalCount \?\? monthlySummary\.billCount/)
+})
+
+test('production screens hide technical screen identifiers from users', () => {
+  assert.doesNotMatch(routeViewSource, /service-route-kicker/)
+  assert.doesNotMatch(routeViewSource, /\{\{ screenId \}\}/)
+  assert.match(routeViewSource, /screen\?\.title \|\| '서비스 화면'/)
+})
+
+test('production choice groups stack one item per row for senior readability', () => {
+  const singleColumnBlock = serviceStyleSource.match(
+    /\.service-route-screen-content \.choices,\s*\.transfer-device \.transfer-choice-grid,\s*\.service-home-device \.service-choice-grid\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(singleColumnBlock, 'production choice groups should have a dedicated layout rule')
+  assert.match(singleColumnBlock, /display:\s*grid;/)
+  assert.match(singleColumnBlock, /grid-template-columns:\s*minmax\(0,\s*1fr\);/)
+
+  const choiceBlock = serviceStyleSource.match(
+    /\.transfer-device \.transfer-choice,\s*\.service-home-device \.service-choice,\s*\.service-route-screen-content \.choice\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(choiceBlock, 'production choice cards should have a shared touch target rule')
+  assert.match(choiceBlock, /min-height:\s*76px;/)
+  assert.match(choiceBlock, /padding:\s*18px;/)
+})
+
+test('transfer account selection exposes loading, empty, error, and retry states', () => {
+  assert.match(
+    routeViewSource,
+    /v-if="service === 'transfer' && screenId === '2-18'"[\s\S]*serviceData\.loading\.accounts/,
+  )
+  assert.match(routeViewSource, /serviceData\.errors\.accounts/)
+  assert.match(routeViewSource, /reloadTransferAccounts/)
+  assert.match(routeViewSource, /등록된 계좌가 없어요\./)
+})
+
+test('production buttons use senior-readable size and weight', () => {
+  const buttonBlock = serviceStyleSource.match(
+    /\.transfer-device button,\s*\.service-home-device button,\s*\.service-route-device button\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(buttonBlock, 'production buttons should have a dedicated readability rule')
+  assert.match(buttonBlock, /font-size:\s*var\(--font-size-action\);/)
+  assert.match(buttonBlock, /font-weight:\s*800;/)
+})
+
+test('production headings and amount emphasis keep the approved senior scale', () => {
+  const headingBlock = serviceStyleSource.match(
+    /\.transfer-heading h1,\s*\.service-home-heading h1,\s*\.service-route-heading h1\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(headingBlock, 'production headings should have a shared type scale rule')
+  assert.match(headingBlock, /font-size:\s*var\(--font-size-title\);/)
+  assert.match(
+    serviceStyleSource,
+    /\.service-route-screen-content \.amount strong\s*\{[\s\S]*?font-size:\s*var\(--font-size-display\);/,
+  )
+})
+
+test('production supporting text stays readable beside the large action labels', () => {
+  assert.match(serviceStyleSource, /\.transfer-balance-content h2\s*\{[\s\S]*?font-size:\s*22px;/)
+  assert.match(
+    serviceStyleSource,
+    /\.transfer-balance-content p\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\);/,
+  )
+  assert.match(
+    serviceStyleSource,
+    /\.service-route-input-field\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\);/,
+  )
+  assert.match(
+    serviceStyleSource,
+    /\.service-route-error,[\s\S]*?\.service-home-data-error\s*\{[\s\S]*?font-size:\s*16px;/,
+  )
 })
