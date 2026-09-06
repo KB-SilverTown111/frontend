@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { routes } from '../src/router/routes.js'
 
 const readSource = (path) => {
-  const url = new URL(path, import.meta.url)
-  return existsSync(url) ? readFileSync(url, 'utf8') : ''
+  return readFileSync(new URL(path, import.meta.url), 'utf8')
 }
 
 const myPageSource = readSource('../src/views/MyPageView.vue')

@@ -132,6 +132,12 @@ test('production transfer route requires candidate selection and prepares only s
     routeViewSource,
     /transferStore\.prepare\(\{[\s\S]*fromAccountId:[\s\S]*recipientId:[\s\S]*amount:/,
   )
+  assert.match(routeViewSource, /v-if="service === 'transfer' && screenId === '2-07'"/)
+  assert.match(routeViewSource, /v-model="transferAmountInput"/)
+  assert.match(routeViewSource, /recognizedAmount: transferAmount/)
+  assert.match(routeViewSource, /amountCandidates: \[transferAmount\]/)
+  assert.match(routeViewSource, /amount: confirmedAmount/)
+  assert.doesNotMatch(routeViewSource, /recognizedAmount: 50000|amountCandidates: \[50000\]/)
   assert.match(
     routeViewSource,
     /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-18' \} \}\)/,
@@ -161,14 +167,12 @@ test('transfer entry clears stale state and a direct final-confirmation URL is b
   )
   assert.match(
     routeViewSource,
-    /service\.value === 'transfer' && screenId\.value === '2-08' && !transferStore\.transferId/,
+    /service\.value === 'transfer' && screenId\.value === '2-08' && !transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
   )
-  assert.match(routeViewSource, /송금 정보를 다시 확인해 주세요\./)
   assert.match(
     routeViewSource,
-    /service\.value === 'transfer' && screenId\.value === '2-09' && !transferStore\.transferId/,
+    /service\.value === 'transfer' && screenId\.value === '2-09' && !transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
   )
-  assert.match(routeViewSource, /송금 정보를 다시 확인해 주세요\./)
 })
 
 test('active reminder queries use the supported SCHEDULED status', () => {
@@ -211,6 +215,16 @@ test('production choice groups stack one item per row for senior readability', (
   assert.ok(choiceBlock, 'production choice cards should have a shared touch target rule')
   assert.match(choiceBlock, /min-height:\s*76px;/)
   assert.match(choiceBlock, /padding:\s*18px;/)
+})
+
+test('transfer account selection exposes loading, empty, error, and retry states', () => {
+  assert.match(
+    routeViewSource,
+    /v-if="service === 'transfer' && screenId === '2-18'"[\s\S]*serviceData\.loading\.accounts/,
+  )
+  assert.match(routeViewSource, /serviceData\.errors\.accounts/)
+  assert.match(routeViewSource, /reloadTransferAccounts/)
+  assert.match(routeViewSource, /등록된 계좌가 없어요\./)
 })
 
 test('production buttons use senior-readable size and weight', () => {

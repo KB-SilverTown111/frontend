@@ -110,7 +110,7 @@ const interactionTokens = [
               </div>
               <p
                 class="mt-3 font-extrabold leading-tight"
-                :style="{ fontSize: scale.size }"
+                :style="{ fontSize: `var(${scale.token})` }"
               >
                 {{ scale.sample }}
               </p>

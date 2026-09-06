@@ -33,6 +33,7 @@ const actionError = ref('')
 const riskPurpose = ref('')
 const transferPin = ref('')
 const recipientKeyword = ref('')
+const transferAmountInput = ref('')
 let loadSequence = 0
 
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
@@ -146,7 +147,13 @@ const transferSummaryRows = computed(() => {
   ]
 })
 
-const isBusy = computed(() => actionBusy.value || transferStore.busy || billStore.busy)
+const isBusy = computed(
+  () =>
+    actionBusy.value ||
+    transferStore.busy ||
+    billStore.busy ||
+    (service.value === 'transfer' && serviceData.loading.accounts),
+)
 
 function formatCurrency(value) {
   const amount = Number(value)
@@ -157,6 +164,16 @@ function formatDate(value) {
   if (!value) return '일정 확인 중'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('ko-KR')
+}
+
+function normalizeTransferAmount(event) {
+  transferAmountInput.value = String(event.target.value || '').replace(/\D/g, '')
+  actionError.value = ''
+}
+
+function parsedTransferAmount() {
+  const amount = Number(transferAmountInput.value)
+  return Number.isSafeInteger(amount) && amount > 0 ? amount : null
 }
 
 async function loadContext(currentService, currentScreenId) {
@@ -180,6 +197,16 @@ async function loadContext(currentService, currentScreenId) {
   if (currentService === 'transfer' && currentScreenId === '2-02') {
     transferStore.reset()
     recipientKeyword.value = ''
+    transferAmountInput.value = ''
+  }
+
+  if (
+    currentService === 'transfer' &&
+    currentScreenId === '2-07' &&
+    !transferAmountInput.value &&
+    transferStore.amount
+  ) {
+    transferAmountInput.value = String(transferStore.amount)
   }
 }
 
@@ -280,6 +307,13 @@ function clearRecipientCandidates() {
   actionError.value = ''
 }
 
+async function reloadTransferAccounts() {
+  actionError.value = ''
+  await serviceData.loadAccounts({ active: true }).catch((error) => {
+    actionError.value = error?.message || '계좌를 불러오지 못했어요. 다시 시도해 주세요.'
+  })
+}
+
 function selectAccount(account) {
   transferStore.selectAccount(account)
   actionError.value = ''
@@ -350,16 +384,26 @@ async function handlePrimary() {
     return go({ name: 'transfer-screen', params: { screenId: '2-07' } })
   }
   if (service.value === 'transfer' && screenId.value === '2-07') {
+    const transferAmount = parsedTransferAmount()
+    if (!transferAmount) {
+      actionError.value = '보낼 금액을 숫자로 입력해 주세요.'
+      return
+    }
+
     try {
       const amountValidation = await transferStore.validateAmount({
-        recognizedAmount: 50000,
-        amountCandidates: [50000],
+        recognizedAmount: transferAmount,
+        amountCandidates: [transferAmount],
       })
+      const confirmedAmount = Number(amountValidation?.confirmedAmount ?? transferAmount)
+      if (!Number.isSafeInteger(confirmedAmount) || confirmedAmount <= 0) {
+        throw new Error('보낼 금액을 확인해 주세요.')
+      }
       await transferStore.prepare({
         fromAccountId:
           transferStore.selectedAccount?.accountId ?? transferStore.selectedAccount?.id,
         recipientId: transferStore.recipient?.recipientId ?? transferStore.recipient?.id,
-        amount: amountValidation.confirmedAmount ?? 50000,
+        amount: confirmedAmount,
       })
       await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
     } catch (error) {
@@ -548,6 +592,21 @@ onMounted(() => {
           />
         </label>
 
+        <label
+          v-if="service === 'transfer' && screenId === '2-07'"
+          class="service-route-input-field"
+        >
+          <span>보낼 금액</span>
+          <input
+            v-model="transferAmountInput"
+            inputmode="numeric"
+            maxlength="12"
+            placeholder="예: 50000"
+            type="text"
+            @input="normalizeTransferAmount"
+          />
+        </label>
+
         <section
           v-if="
             service === 'transfer' &&
@@ -590,24 +649,52 @@ onMounted(() => {
         </label>
 
         <section
-          v-if="service === 'transfer' && screenId === '2-18' && serviceData.accounts.length"
+          v-if="service === 'transfer' && screenId === '2-18'"
           aria-label="출금 계좌 선택"
           class="service-route-live-panel"
         >
           <div class="service-route-live-heading">
             <strong>출금할 계좌를 선택해 주세요</strong>
+            <span v-if="serviceData.loading.accounts">불러오는 중…</span>
           </div>
-          <Button
-            v-for="account in serviceData.accounts"
-            :key="account.accountId || account.id"
-            :aria-pressed="transferStore.selectedAccount === account"
-            class="service-route-live-row"
-            variant="secondary"
-            @click="selectAccount(account)"
+          <p
+            v-if="serviceData.errors.accounts"
+            class="service-route-live-error"
+            role="status"
           >
-            {{ account.accountName || account.accountType || '내 계좌' }}
-            {{ account.accountNumberMasked || '' }}
+            계좌를 불러오지 못했어요. 다시 시도해 주세요.
+          </p>
+          <Button
+            v-if="serviceData.errors.accounts"
+            class="service-route-live-retry"
+            :disabled="serviceData.loading.accounts"
+            variant="secondary"
+            @click="reloadTransferAccounts"
+          >
+            다시 불러오기
           </Button>
+          <p
+            v-else-if="!serviceData.loading.accounts && !serviceData.accounts.length"
+            class="service-route-live-empty"
+          >
+            등록된 계좌가 없어요. 출금할 계좌를 먼저 등록해 주세요.
+          </p>
+          <div
+            v-if="!serviceData.errors.accounts && serviceData.accounts.length"
+            class="service-route-live-rows"
+          >
+            <Button
+              v-for="account in serviceData.accounts"
+              :key="account.accountId || account.id"
+              :aria-pressed="transferStore.selectedAccount === account"
+              class="service-route-live-row"
+              variant="secondary"
+              @click="selectAccount(account)"
+            >
+              {{ account.accountName || account.accountType || '내 계좌' }}
+              {{ account.accountNumberMasked || '' }}
+            </Button>
+          </div>
         </section>
 
         <label

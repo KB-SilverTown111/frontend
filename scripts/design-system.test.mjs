@@ -22,6 +22,10 @@ const inputSource = readFileSync(
   new URL('../src/components/ui/input/Input.vue', import.meta.url),
   'utf8',
 )
+const alertTitleSource = readFileSync(
+  new URL('../src/components/ui/alert/AlertTitle.vue', import.meta.url),
+  'utf8',
+)
 
 test('design system page documents the current senior-friendly foundation', () => {
   assert.match(viewSource, /DESIGN SYSTEM · SENIOR UI/)
@@ -45,4 +49,9 @@ test('shadcn primitives use the updated card and touch-target defaults', () => {
   assert.match(buttonSource, /text-\[length:var\(--font-size-action\)\]/)
   assert.match(inputSource, /min-h-16/)
   assert.match(inputSource, /border-2/)
+  assert.match(alertTitleSource, /text-\[length:var\(--font-size-action\)\]/)
+})
+
+test('typography samples follow the active font-size token', () => {
+  assert.match(viewSource, /fontSize: `var\(\$\{scale\.token\}\)`/)
 })

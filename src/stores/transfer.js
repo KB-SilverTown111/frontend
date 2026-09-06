@@ -46,7 +46,8 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   function accountIdOf(value) {
-    return value?.accountId ?? value?.id ?? value ?? ''
+    const candidate = value?.accountId ?? value?.id ?? value
+    return typeof candidate === 'string' || typeof candidate === 'number' ? candidate : ''
   }
 
   async function findRecipients(request) {
@@ -79,7 +80,7 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   async function prepare(request) {
-    const fromAccountId = request?.fromAccountId ?? accountIdOf(selectedAccount.value)
+    const fromAccountId = accountIdOf(request?.fromAccountId ?? selectedAccount.value)
     const recipientId = request?.recipientId ?? recipientIdOf(recipient.value)
     const transferAmount = Number(request?.amount ?? amount.value)
     if (!fromAccountId) throw new Error('출금 계좌를 선택해 주세요.')

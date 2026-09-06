@@ -83,6 +83,17 @@ test('transfer store accepts a unique candidate, requires valid preparation fiel
   }
 })
 
+test('transfer store rejects account objects without a usable identifier', () => {
+  setup()
+  const store = useTransferStore()
+
+  assert.throws(
+    () => store.selectAccount({ accountName: '식별자 없는 계좌' }),
+    /출금 계좌를 다시 선택해 주세요\./,
+  )
+  assert.doesNotThrow(() => store.selectAccount({ accountId: 'a-1' }))
+})
+
 test('bill store uploads OCR data and confirms then executes a bill', async () => {
   setup()
   const originals = {
