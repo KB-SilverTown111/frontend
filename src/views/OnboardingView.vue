@@ -210,6 +210,7 @@ async function openPostcode() {
 }
 
 function goBack() {
+  store.submitError = null
   const recovery = {
     'bank-select': 'bank-account',
     'address-not-found': 'address',
@@ -258,10 +259,16 @@ async function handlePrimary() {
       permissionsRequesting.value = false
     }
   }
-  if (id === 'complete') return requestAppIntent('home')
+  if (id === 'complete') {
+    requestAppIntent('home')
+    return router.push({ name: 'transfer-home' })
+  }
   if (id === 'login') {
     const result = await store.login()
-    if (result.ok) return requestAppIntent('home')
+    if (result.ok) {
+      requestAppIntent('home')
+      return router.push({ name: 'transfer-home' })
+    }
     return
   }
   if (id === 'relogin') return go('login')
@@ -657,7 +664,7 @@ function handleSecondary() {
             :aria-invalid="Boolean(store.fieldErrors.accountNumber)"
             inputmode="numeric"
             placeholder="계좌번호 입력"
-            type="password"
+            type="text"
             @input="accountVerified = false"
         /></label>
       </div>
