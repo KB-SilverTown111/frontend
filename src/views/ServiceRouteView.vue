@@ -4,17 +4,13 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { stripProductionSelectionIndicators } from '@/services/screenContent.js'
 import {
   getProductionActionRoutes,
   getProductionHomeRoute,
   loadProductionScreen,
 } from '@/services/productionServiceScreens.js'
-import {
-  getContactCandidates,
-  getCurrentLocation,
-  photoToBlob,
-  takeBillPhoto,
-} from '@/services/nativeCapabilities.js'
+import { getContactCandidates, photoToBlob, takeBillPhoto } from '@/services/nativeCapabilities.js'
 import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
@@ -35,10 +31,17 @@ const loading = ref(true)
 const actionBusy = ref(false)
 const actionError = ref('')
 const riskPurpose = ref('')
+const transferPin = ref('')
+const recipientKeyword = ref('')
+const transferAmountInput = ref('')
 let loadSequence = 0
 
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
 const homeRoute = computed(() => getProductionHomeRoute(service.value))
+const isMyPageDetail = computed(
+  () => service.value === 'living' && ['4-14', '4-15', '4-16'].includes(screenId.value),
+)
+const backRoute = computed(() => (isMyPageDetail.value ? { name: 'my-page' } : homeRoute.value))
 const primaryRoute = computed(() => actionRoutes.value.primary)
 const secondaryRoute = computed(() => actionRoutes.value.secondary)
 const VOICE_CONVERSATION_SCREENS = {
@@ -56,16 +59,10 @@ const showVoiceControl = computed(() =>
  * 나머지 음성 화면은 취소·다시 말하기 같은 이동 경로가 화면 버튼에만 있으므로 유지한다.
  */
 const hideScreenActions = computed(() => service.value === 'transfer' && screenId.value === '2-02')
-
 const liveKind = computed(() => {
   if (service.value === 'living') {
     if (['4-02', '4-03', '4-04'].includes(screenId.value)) return 'accounts'
     if (['4-06', '4-07', '4-08', '4-17', '4-18'].includes(screenId.value)) return 'reminders'
-    if (['4-10', '4-11', '4-12', '4-20', '4-21'].includes(screenId.value)) return 'branches'
-    if (['4-14', '4-15', '4-16'].includes(screenId.value)) return 'profile'
-  }
-  if (service.value === 'voice' && ['5-01', '5-02'].includes(screenId.value)) {
-    return 'voiceSettings'
   }
   if (
     service.value === 'bills' &&
@@ -74,7 +71,6 @@ const liveKind = computed(() => {
   ) {
     return 'bill'
   }
-  if (service.value === 'voice' && voiceStore.lastTurn) return 'voiceTurn'
   return ''
 })
 
@@ -82,23 +78,17 @@ const liveTitle = computed(() => {
   const titles = {
     accounts: '내 계좌에서 불러온 정보',
     reminders: '서버에 저장된 알림',
-    branches: '가까운 이동점포 정보',
-    profile: '내 정보에서 불러온 내용',
-    voiceSettings: '저장된 음성 설정',
     bill: '고지서 인식 결과',
-    voiceTurn: '음성 대화 응답',
   }
   return titles[liveKind.value] || ''
 })
 
 const liveLoading = computed(() => {
   if (liveKind.value === 'bill') return billStore.busy
-  if (liveKind.value === 'voiceTurn') return voiceStore.busy
   return liveKind.value && serviceData.loading[liveKind.value]
 })
 const liveError = computed(() => {
   if (liveKind.value === 'bill') return billStore.error?.message || ''
-  if (liveKind.value === 'voiceTurn') return voiceStore.error?.message || ''
   return serviceData.errors[liveKind.value]?.message || ''
 })
 
@@ -115,30 +105,6 @@ const liveRows = computed(() => {
       value: formatDate(reminder.scheduledAt || reminder.dueDate),
     }))
   }
-  if (liveKind.value === 'branches') {
-    return serviceData.branches.map((branch) => ({
-      label: branch.name || branch.branchName || '이동점포',
-      value: branch.distance ? `${branch.distance}km` : branch.address || '상세 보기',
-    }))
-  }
-  if (liveKind.value === 'profile' && serviceData.profile) {
-    return [
-      { label: '이름', value: serviceData.profile.name || '등록된 이름 없음' },
-      { label: '휴대전화', value: serviceData.profile.phone || '등록된 번호 없음' },
-      { label: '주소', value: serviceData.profile.address || '등록된 주소 없음' },
-    ]
-  }
-  if (liveKind.value === 'voiceSettings' && serviceData.voiceSettings) {
-    return [
-      { label: '목소리', value: serviceData.voiceSettings.ttsVoice || '기본 목소리' },
-      {
-        label: '말하기 속도',
-        value: serviceData.voiceSettings.speechRateMultiplier
-          ? `${serviceData.voiceSettings.speechRateMultiplier}배`
-          : '기본',
-      },
-    ]
-  }
   if (liveKind.value === 'bill' && billStore.bill) {
     return [
       { label: '납부처', value: billStore.bill.payee || '확인 중' },
@@ -146,17 +112,47 @@ const liveRows = computed(() => {
       { label: '납부 기한', value: formatDate(billStore.bill.dueDate) },
     ]
   }
-  if (liveKind.value === 'voiceTurn' && voiceStore.lastTurn) {
-    return [
-      { label: '상태', value: voiceStore.lastTurn.state || '처리 완료' },
-      { label: '안내', value: voiceStore.lastTurn.ttsText || '화면을 확인해 주세요.' },
-    ]
-  }
   return []
 })
 
+const transferSummaryRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-08') return []
+
+  const recipient = transferStore.recipient || {}
+  const account = transferStore.selectedAccount || {}
+  return [
+    {
+      label: '받는 분',
+      value:
+        recipient.name || recipient.displayName || recipient.accountHolderName || '받는 분 확인 중',
+    },
+    {
+      label: '받는 계좌',
+      value:
+        recipient.accountNumberMasked ||
+        recipient.accountMasked ||
+        recipient.bankName ||
+        '계좌 확인 중',
+    },
+    { label: '보낼 금액', value: formatCurrency(transferStore.amount) },
+    {
+      label: '출금 계좌',
+      value:
+        account.accountNumberMasked ||
+        account.accountMasked ||
+        account.accountName ||
+        account.accountHolderName ||
+        '계좌 확인 중',
+    },
+  ]
+})
+
 const isBusy = computed(
-  () => actionBusy.value || transferStore.busy || billStore.busy || voiceStore.busy,
+  () =>
+    actionBusy.value ||
+    transferStore.busy ||
+    billStore.busy ||
+    (service.value === 'transfer' && serviceData.loading.accounts),
 )
 
 function formatCurrency(value) {
@@ -170,6 +166,16 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('ko-KR')
 }
 
+function normalizeTransferAmount(event) {
+  transferAmountInput.value = String(event.target.value || '').replace(/\D/g, '')
+  actionError.value = ''
+}
+
+function parsedTransferAmount() {
+  const amount = Number(transferAmountInput.value)
+  return Number.isSafeInteger(amount) && amount > 0 ? amount : null
+}
+
 async function loadContext(currentService, currentScreenId) {
   if (currentService === 'bills' && route.query.billId) {
     await billStore.load(String(route.query.billId)).catch(() => {})
@@ -180,43 +186,27 @@ async function loadContext(currentService, currentScreenId) {
       await serviceData.loadAccounts({ active: true }).catch(() => {})
     }
     if (['4-06', '4-07', '4-08', '4-17', '4-18'].includes(currentScreenId)) {
-      await serviceData.loadReminders({ status: 'PENDING' }).catch(() => {})
-    }
-    if (currentScreenId === '4-10') {
-      try {
-        const position = await getCurrentLocation()
-        await serviceData.loadBranches({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          taskType: 'BRANCH',
-        })
-      } catch {
-        serviceData.errors.branches = {
-          message: '위치를 확인할 수 없어 지역을 직접 선택해 주세요.',
-        }
-      }
-    }
-    if (['4-14', '4-15', '4-16'].includes(currentScreenId)) {
-      await serviceData.loadProfile().catch(() => {})
-      if (currentScreenId === '4-16') await serviceData.loadConsents().catch(() => {})
+      await serviceData.loadReminders({ status: 'SCHEDULED' }).catch(() => {})
     }
   }
 
-  if (currentService === 'voice' && ['5-01', '5-02'].includes(currentScreenId)) {
-    const loadedSettings = await serviceData.loadVoiceSettings().catch(() => null)
-    if (loadedSettings) {
-      Object.assign(voiceStore.settings, {
-        ttsVoice: loadedSettings.ttsVoice,
-        speechRateMultiplier: loadedSettings.speechRateMultiplier,
-        volumeMultiplier: loadedSettings.volumeMultiplier,
-      })
-    }
+  if (currentService === 'transfer' && currentScreenId === '2-18') {
+    await serviceData.loadAccounts({ active: true }).catch(() => {})
   }
 
-  if (currentService === 'transfer' && currentScreenId === '2-02' && !voiceStore.sessionId) {
-    const session = await voiceStore.startSession('TRANSFER').catch(() => null)
-    transferStore.sessionId = session?.sessionId || transferStore.sessionId
-    await voiceStore.issueSpeechToken().catch(() => {})
+  if (currentService === 'transfer' && currentScreenId === '2-02') {
+    transferStore.reset()
+    recipientKeyword.value = ''
+    transferAmountInput.value = ''
+  }
+
+  if (
+    currentService === 'transfer' &&
+    currentScreenId === '2-07' &&
+    !transferAmountInput.value &&
+    transferStore.amount
+  ) {
+    transferAmountInput.value = String(transferStore.amount)
   }
 }
 
@@ -226,6 +216,7 @@ async function loadScreen() {
   screen.value = null
   actionError.value = ''
   riskPurpose.value = ''
+  transferPin.value = ''
 
   let nextScreen
   try {
@@ -253,8 +244,10 @@ async function uploadBill(source) {
     const image = await photoToBlob(photo)
     if (!image) throw new Error('사진을 읽을 수 없어요. 다시 촬영해 주세요.')
 
-    let voiceSessionId = voiceStore.sessionId || transferStore.sessionId
-    if (!voiceSessionId) {
+    let voiceSessionId = ''
+    if (voiceStore.session?.entryPoint === 'BILL_PAYMENT') {
+      voiceSessionId = voiceStore.sessionId
+    } else {
       const session = await voiceStore.startSession('BILL_PAYMENT')
       voiceSessionId = session?.sessionId
     }
@@ -264,7 +257,7 @@ async function uploadBill(source) {
       image,
       voiceSessionId,
     })
-    await go({ name: 'bills-screen', params: { screenId: '3-03' } })
+    await go({ name: 'bills-screen', params: { screenId: '3-04' } })
   } catch (error) {
     if (
       !String(error?.message || '')
@@ -279,13 +272,23 @@ async function uploadBill(source) {
 }
 
 async function loadRecipients() {
+  const keyword = recipientKeyword.value.trim()
+  if (!keyword) {
+    actionError.value = '받는 분 이름을 입력해 주세요.'
+    return
+  }
+
   actionBusy.value = true
   actionError.value = ''
   try {
-    const contacts = await getContactCandidates()
-    const keyword = voiceStore.transcript.split(/에게|에|으로/)[0].trim() || '김영희'
+    const contacts = await getContactCandidates().catch(() => [])
     await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
-    await go(primaryRoute.value)
+    if (!transferStore.recipientCandidates.length) {
+      throw new Error('받는 분을 찾지 못했어요. 이름이나 계좌 정보를 다시 확인해 주세요.')
+    }
+    if (transferStore.recipient) {
+      await go({ name: 'transfer-screen', params: { screenId: '2-18' } })
+    }
   } catch (error) {
     actionError.value = error?.message || '연락처를 불러오지 못했어요. 직접 검색해 주세요.'
   } finally {
@@ -293,41 +296,45 @@ async function loadRecipients() {
   }
 }
 
-async function loadBranchesFromDevice() {
-  actionBusy.value = true
+async function selectRecipient(candidate) {
+  transferStore.selectRecipient(candidate)
   actionError.value = ''
-  try {
-    const position = await getCurrentLocation()
-    await serviceData.loadBranches({
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-      taskType: 'BRANCH',
-    })
-    await go(primaryRoute.value)
-  } catch (error) {
-    actionError.value = error?.message || '위치를 확인하지 못했어요. 지역을 직접 선택해 주세요.'
-  } finally {
-    actionBusy.value = false
-  }
+  await go({ name: 'transfer-screen', params: { screenId: '2-18' } })
 }
 
-async function listenForVoice() {
-  actionBusy.value = true
+function clearRecipientCandidates() {
+  transferStore.clearRecipientSelection()
   actionError.value = ''
-  try {
-    if (!voiceStore.sessionId) {
-      const session = await voiceStore.startSession(
-        service.value === 'transfer' ? 'TRANSFER' : 'GENERAL_FINANCE',
-      )
-      transferStore.sessionId = session?.sessionId || transferStore.sessionId
-      await voiceStore.issueSpeechToken().catch(() => {})
-    }
-    await voiceStore.listenAndSendTurn()
-  } catch (error) {
-    actionError.value = error?.message || '말씀을 듣지 못했어요. 다시 시도해 주세요.'
-  } finally {
-    actionBusy.value = false
-  }
+}
+
+async function reloadTransferAccounts() {
+  actionError.value = ''
+  await serviceData.loadAccounts({ active: true }).catch((error) => {
+    actionError.value = error?.message || '계좌를 불러오지 못했어요. 다시 시도해 주세요.'
+  })
+}
+
+function selectAccount(account) {
+  transferStore.selectAccount(account)
+  actionError.value = ''
+}
+
+function needsAdditionalRiskCheck(risk) {
+  return Boolean(
+    risk?.additionalCheckRequired ||
+    risk?.requiresAdditionalCheck ||
+    risk?.verificationRequired ||
+    risk?.requiresVerification,
+  )
+}
+
+function riskWarning(risk) {
+  return (
+    risk?.warningText ||
+    risk?.warning ||
+    risk?.message ||
+    '추가 확인이 필요해 송금을 진행할 수 없어요.'
+  )
 }
 
 async function handlePrimary() {
@@ -361,26 +368,83 @@ async function handlePrimary() {
       .catch((error) => (actionError.value = error.message))
     return
   }
-  if (service.value === 'transfer' && screenId.value === '2-05') return loadRecipients()
+  if (service.value === 'transfer' && screenId.value === '2-05') {
+    if (!transferStore.recipientCandidates.length) return loadRecipients()
+    if (!transferStore.recipient) {
+      actionError.value = '받는 분을 직접 선택해 주세요.'
+      return
+    }
+    return go({ name: 'transfer-screen', params: { screenId: '2-18' } })
+  }
+  if (service.value === 'transfer' && screenId.value === '2-18') {
+    if (!transferStore.selectedAccount) {
+      actionError.value = '출금할 계좌를 직접 선택해 주세요.'
+      return
+    }
+    return go({ name: 'transfer-screen', params: { screenId: '2-07' } })
+  }
   if (service.value === 'transfer' && screenId.value === '2-07') {
-    await transferStore
-      .validateAmount({ recognizedAmount: 50000, amountCandidates: [50000] })
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
+    const transferAmount = parsedTransferAmount()
+    if (!transferAmount) {
+      actionError.value = '보낼 금액을 숫자로 입력해 주세요.'
+      return
+    }
+
+    try {
+      const amountValidation = await transferStore.validateAmount({
+        recognizedAmount: transferAmount,
+        amountCandidates: [transferAmount],
+      })
+      const confirmedAmount = Number(amountValidation?.confirmedAmount ?? transferAmount)
+      if (!Number.isSafeInteger(confirmedAmount) || confirmedAmount <= 0) {
+        throw new Error('보낼 금액을 확인해 주세요.')
+      }
+      await transferStore.prepare({
+        fromAccountId:
+          transferStore.selectedAccount?.accountId ?? transferStore.selectedAccount?.id,
+        recipientId: transferStore.recipient?.recipientId ?? transferStore.recipient?.id,
+        amount: confirmedAmount,
+      })
+      await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+    } catch (error) {
+      actionError.value = error.message
+    }
+    return
+  }
+  if (service.value === 'transfer' && screenId.value === '2-08' && !transferStore.transferId) {
+    actionError.value = '송금 정보를 다시 확인해 주세요.'
     return
   }
   if (service.value === 'transfer' && screenId.value === '2-08' && transferStore.transferId) {
     try {
-      const risk = await transferStore.assessRisk()
-      if (risk?.additionalCheckRequired) {
-        await go({ name: 'transfer-screen', params: { screenId: '2-09' } })
-      } else {
-        await transferStore.confirm({ approved: true })
-        await go(primaryRoute.value)
+      if (!transferStore.riskCleared) {
+        const risk = await transferStore.assessRisk()
+        if (transferStore.isRiskHeld(risk)) {
+          await go({ name: 'transfer-screen', params: { screenId: '2-10' } })
+          return
+        }
+        if (needsAdditionalRiskCheck(risk)) {
+          await go({ name: 'transfer-screen', params: { screenId: '2-09' } })
+          return
+        }
       }
+      if (!/^\d{6}$/.test(transferPin.value)) {
+        actionError.value = '송금 PIN 6자리를 입력해 주세요.'
+        return
+      }
+      if (!transferStore.confirmationCompleted) await transferStore.confirm({ approved: true })
+      if (!transferStore.authenticationCompleted) {
+        await transferStore.authenticate({ pin: transferPin.value })
+      }
+      await transferStore.execute()
+      await go({ name: 'transfer-screen', params: { screenId: '2-14' } })
     } catch (error) {
       actionError.value = error.message
     }
+    return
+  }
+  if (service.value === 'transfer' && screenId.value === '2-09' && !transferStore.transferId) {
+    actionError.value = '송금 정보를 다시 확인해 주세요.'
     return
   }
   if (service.value === 'transfer' && screenId.value === '2-09' && transferStore.transferId) {
@@ -388,35 +452,17 @@ async function handlePrimary() {
       const risk = await transferStore.checkRisk({
         purposeAnswer: riskPurpose.value.trim() || null,
       })
-      await go(
-        risk?.hold
-          ? { name: 'transfer-screen', params: { screenId: '2-10' } }
-          : { name: 'transfer-screen', params: { screenId: '2-08' } },
-      )
+      if (transferStore.isRiskHeld(risk)) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-10' } })
+      } else if (needsAdditionalRiskCheck(risk)) {
+        actionError.value = riskWarning(risk)
+      } else {
+        await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+      }
     } catch (error) {
       actionError.value = error.message
     }
     return
-  }
-  if (service.value === 'transfer' && screenId.value === '2-11' && transferStore.transferId) {
-    await transferStore
-      .requestGuardianVerification()
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
-    return
-  }
-  if (service.value === 'transfer' && screenId.value === '2-22' && transferStore.transferId) {
-    await transferStore
-      .execute()
-      .then(() => go({ name: 'transfer-screen', params: { screenId: '2-14' } }))
-      .catch((error) => (actionError.value = error.message))
-    return
-  }
-  if (service.value === 'living' && screenId.value === '4-10') {
-    return go(primaryRoute.value)
-  }
-  if (service.value === 'living' && ['4-12', '4-20', '4-21'].includes(screenId.value)) {
-    return loadBranchesFromDevice()
   }
   if (service.value === 'living' && screenId.value === '4-07') {
     const scheduledAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -426,34 +472,6 @@ async function handlePrimary() {
       .catch((error) => (actionError.value = error.message))
     return
   }
-  if (service.value === 'living' && screenId.value === '4-13') {
-    await voiceStore
-      .saveSettings()
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
-    return
-  }
-  if (service.value === 'voice' && ['5-01', '5-02'].includes(screenId.value)) {
-    await voiceStore
-      .saveSettings()
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
-    return
-  }
-  if (service.value === 'voice' && ['5-03', '5-07'].includes(screenId.value)) {
-    if (voiceStore.sessionId && voiceStore.lastTurn?.turnId) {
-      await voiceStore
-        .sendEvent({ eventType: 'REPLAY', turnId: voiceStore.lastTurn.turnId })
-        .catch(() => {})
-    }
-    return go(primaryRoute.value)
-  }
-  if (service.value === 'voice' && ['5-05', '5-08'].includes(screenId.value)) {
-    if (screenId.value === '5-08') return listenForVoice()
-    await voiceStore.issueSpeechToken().catch(() => {})
-    await voiceStore.startSession('GENERAL_FINANCE').catch(() => {})
-  }
-
   return go(primaryRoute.value)
 }
 
@@ -463,12 +481,6 @@ async function handleSecondary() {
 
   if (service.value === 'bills' && screenId.value === '3-02A') return uploadBill('gallery')
   if (service.value === 'bills' && screenId.value === '3-03') billStore.reset()
-  if (service.value === 'voice' && screenId.value === '5-04') {
-    await voiceStore.startSession('GENERAL_FINANCE').catch(() => {})
-  }
-  if (service.value === 'voice' && screenId.value === '5-07') {
-    await voiceStore.closeSession().catch(() => {})
-  }
   return go(secondaryRoute.value)
 }
 
@@ -498,9 +510,9 @@ onMounted(() => {
     <article class="mobile-app-shell service-route-device">
       <header class="app-header">
         <RouterLink
-          aria-label="서비스 홈으로"
+          :aria-label="isMyPageDetail ? '마이페이지로' : '서비스 홈으로'"
           class="app-header-button service-route-back"
-          :to="homeRoute"
+          :to="backRoute"
         >
           ‹
         </RouterLink>
@@ -523,10 +535,7 @@ onMounted(() => {
 
       <main class="app-main service-route-main">
         <section class="screen-heading service-route-heading">
-          <span class="service-route-kicker">
-            {{ screen?.serviceLabel || '서비스' }} · {{ screenId }}
-          </span>
-          <h1>{{ screen?.title || screenId }}</h1>
+          <h1>{{ screen?.title || '서비스 화면' }}</h1>
           <p>{{ screen?.description || '화면을 불러오는 중입니다.' }}</p>
         </section>
 
@@ -539,15 +548,20 @@ onMounted(() => {
         </div>
 
         <section
-          v-if="screen?.contentHtml && !showVoiceControl"
-          class="service-route-screen-content prototype-screen-content"
+          v-if="
+            screen?.contentHtml &&
+            !(service === 'transfer' && screenId === '2-08') &&
+            !hideScreenActions &&
+            !showVoiceControl
+          "
+          class="service-route-screen-content screen-content"
           :data-variant="screen.variant"
         >
           <!-- Content is loaded from the reviewed reference screen data. -->
           <!-- eslint-disable vue/no-v-html -->
           <div
             class="content"
-            v-html="screen.contentHtml"
+            v-html="stripProductionSelectionIndicators(screen.contentHtml)"
           />
           <!-- eslint-enable vue/no-v-html -->
           <p
@@ -578,6 +592,147 @@ onMounted(() => {
             type="text"
           />
         </label>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-07'"
+          class="service-route-input-field"
+        >
+          <span>보낼 금액</span>
+          <input
+            v-model="transferAmountInput"
+            inputmode="numeric"
+            maxlength="12"
+            placeholder="예: 50000"
+            type="text"
+            @input="normalizeTransferAmount"
+          />
+        </label>
+
+        <section
+          v-if="
+            service === 'transfer' &&
+            screenId === '2-05' &&
+            transferStore.recipientCandidates.length
+          "
+          aria-label="받는 분 선택"
+          class="service-route-live-panel"
+        >
+          <div class="service-route-live-heading">
+            <strong>받는 분을 선택해 주세요</strong>
+          </div>
+          <Button
+            v-for="candidate in transferStore.recipientCandidates"
+            :key="candidate.recipientId || candidate.id"
+            :aria-pressed="transferStore.recipient === candidate"
+            class="service-route-live-row"
+            variant="secondary"
+            @click="selectRecipient(candidate)"
+          >
+            {{ candidate.name || candidate.displayName || '받는 분' }}
+            {{ candidate.bankName || candidate.bankCode || '' }}
+            {{ candidate.accountNumberMasked || candidate.accountMasked || '' }}
+          </Button>
+        </section>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-05'"
+          class="service-route-input-field"
+        >
+          <span>받는 분 이름</span>
+          <input
+            v-model="recipientKeyword"
+            autocomplete="name"
+            maxlength="50"
+            placeholder="예: 김영희"
+            type="text"
+            @input="clearRecipientCandidates"
+          />
+        </label>
+
+        <section
+          v-if="service === 'transfer' && screenId === '2-18'"
+          aria-label="출금 계좌 선택"
+          class="service-route-live-panel"
+        >
+          <div class="service-route-live-heading">
+            <strong>출금할 계좌를 선택해 주세요</strong>
+            <span v-if="serviceData.loading.accounts">불러오는 중…</span>
+          </div>
+          <p
+            v-if="serviceData.errors.accounts"
+            class="service-route-live-error"
+            role="status"
+          >
+            계좌를 불러오지 못했어요. 다시 시도해 주세요.
+          </p>
+          <Button
+            v-if="serviceData.errors.accounts"
+            class="service-route-live-retry"
+            :disabled="serviceData.loading.accounts"
+            variant="secondary"
+            @click="reloadTransferAccounts"
+          >
+            다시 불러오기
+          </Button>
+          <p
+            v-else-if="!serviceData.loading.accounts && !serviceData.accounts.length"
+            class="service-route-live-empty"
+          >
+            등록된 계좌가 없어요. 출금할 계좌를 먼저 등록해 주세요.
+          </p>
+          <div
+            v-if="!serviceData.errors.accounts && serviceData.accounts.length"
+            class="service-route-live-rows"
+          >
+            <Button
+              v-for="account in serviceData.accounts"
+              :key="account.accountId || account.id"
+              :aria-pressed="transferStore.selectedAccount === account"
+              class="service-route-live-row"
+              variant="secondary"
+              @click="selectAccount(account)"
+            >
+              {{ account.accountName || account.accountType || '내 계좌' }}
+              {{ account.accountNumberMasked || '' }}
+            </Button>
+          </div>
+        </section>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-08'"
+          class="service-route-input-field"
+        >
+          <span>송금 PIN 6자리</span>
+          <input
+            v-model="transferPin"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="PIN 6자리"
+            type="password"
+          />
+        </label>
+
+        <section
+          v-if="transferSummaryRows.length"
+          aria-label="실제 송금 내용"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>송금 내용을 확인해 주세요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in transferSummaryRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
 
         <VoiceConversationPanel
           v-if="showVoiceControl"
@@ -656,11 +811,12 @@ onMounted(() => {
 
       <nav
         aria-label="주요 메뉴"
-        class="app-bottom-nav three-items service-route-bottom-nav"
+        class="app-bottom-nav four-items service-route-bottom-nav"
       >
         <RouterLink :to="{ name: 'transfer-home' }">홈</RouterLink>
         <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
         <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
+        <RouterLink :to="{ name: 'my-page' }">마이페이지</RouterLink>
       </nav>
     </article>
   </div>

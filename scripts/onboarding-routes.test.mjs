@@ -32,15 +32,7 @@ test('the Figma help screen has a production route outside the prototype', () =>
   assert.equal(help.path, '/onboarding/help')
 })
 
-test('prototype and design-system routes remain available', () => {
-  assert.equal(
-    routes.some(({ name }) => name === 'prototype-index'),
-    true,
-  )
-  assert.equal(
-    routes.some(({ name }) => name === 'prototype-screen'),
-    true,
-  )
+test('design-system route remains available', () => {
   assert.equal(
     routes.some(({ name }) => name === 'design-system'),
     true,

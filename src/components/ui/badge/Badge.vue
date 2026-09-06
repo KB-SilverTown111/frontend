@@ -11,13 +11,13 @@ const props = defineProps({
   variant: { type: String, default: 'default' },
 })
 
-const variants = cva('inline-flex min-h-8 items-center rounded-full px-3 text-[13px] font-bold', {
+const variants = cva('inline-flex min-h-9 items-center rounded-full px-3 text-sm font-extrabold', {
   variants: {
     variant: {
       default: 'bg-accent text-accent-foreground',
       success: 'bg-muted text-[#315a49]',
       destructive: 'bg-[#fff0ef] text-destructive',
-      outline: 'border bg-card text-foreground',
+      outline: 'border-2 bg-card text-foreground',
     },
   },
   defaultVariants: { variant: 'default' },

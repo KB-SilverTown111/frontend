@@ -9,10 +9,6 @@ const viewSource = existsSync(viewPath) ? readFileSync(viewPath, 'utf8') : ''
 const serviceHomePath = new URL('../src/views/ServiceHomeView.vue', import.meta.url)
 const serviceHomeSource = existsSync(serviceHomePath) ? readFileSync(serviceHomePath, 'utf8') : ''
 const styleSource = readFileSync(new URL('../src/styles/transfer.css', import.meta.url), 'utf8')
-const prototypeShellSource = readFileSync(
-  new URL('../src/components/prototype/MobileScreenShell.vue', import.meta.url),
-  'utf8',
-)
 const onboardingSource = readFileSync(
   new URL('../src/views/OnboardingView.vue', import.meta.url),
   'utf8',
@@ -29,7 +25,7 @@ test('login success navigates to the transfer home screen', () => {
   assert.match(onboardingSource, /router\.push\(\{ name: 'transfer-home' \}\)/)
 })
 
-test('transfer home keeps the first prototype screen content', () => {
+test('transfer home keeps the first reference screen content', () => {
   for (const copy of [
     '사용 가능 금액',
     '1,240,000원',
@@ -49,13 +45,25 @@ test('transfer home uses a light surface without onboarding-only controls', () =
   assert.match(styleSource, /\.transfer-device \.app-header[\s\S]*background: var\(--card\)/)
 })
 
-test('transfer home includes the three service navigation labels', () => {
-  for (const label of ['홈', '고지서', '생활금융']) {
+test('transfer home includes the four service navigation labels', () => {
+  for (const label of ['홈', '고지서', '생활금융', '마이페이지']) {
     assert.match(viewSource, new RegExp(label))
   }
 
-  assert.match(viewSource, /class="app-bottom-nav three-items transfer-bottom-nav"/)
+  assert.match(viewSource, /class="app-bottom-nav four-items transfer-bottom-nav"/)
   assert.match(viewSource, /aria-current="page"/)
+})
+
+test('transfer home cards use a thicker visible border', () => {
+  assert.match(
+    styleSource,
+    /\.transfer-balance-card\s*\{[\s\S]*?border:\s*2px solid var\(--border\);/,
+  )
+  assert.match(styleSource, /\.transfer-choice\s*\{[\s\S]*?border:\s*2px solid var\(--border\);/)
+})
+
+test('service route back control has the same bordered treatment as onboarding', () => {
+  assert.match(styleSource, /\.service-route-back\s*\{[\s\S]*?border:\s*1px solid var\(--border\);/)
 })
 
 test('service navigation routes use production service screens', () => {
@@ -68,12 +76,6 @@ test('service navigation routes use production service screens', () => {
   assert.equal(livingHome?.path, '/living')
   assert.equal(typeof livingHome?.component, 'function')
   assert.equal(livingHome?.redirect, undefined)
-})
-
-test('prototype service navigation remains inside the reference prototype flow', () => {
-  for (const flow of ['transfer', 'bills', 'living']) {
-    assert.match(prototypeShellSource, new RegExp(`flow: '${flow}'`))
-  }
 })
 
 test('production service homes are based on reference copy without using prototype views', () => {
