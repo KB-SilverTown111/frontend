@@ -1,3 +1,22 @@
+import { resolveProductionScreen } from '../services/productionServiceScreens.js'
+
+function createProductionServiceRoute(service) {
+  return {
+    path: `/${service}/:screenId`,
+    name: `${service}-screen`,
+    component: () => import('@/views/ServiceRouteView.vue'),
+    props: true,
+    meta: { service },
+    beforeEnter: (to) => {
+      if (resolveProductionScreen(service, String(to.params.screenId))) return true
+
+      return {
+        name: service === 'voice' ? 'voice-home' : `${service}-home`,
+      }
+    },
+  }
+}
+
 export const routes = [
   {
     path: '/',
@@ -32,6 +51,15 @@ export const routes = [
     name: 'living-home',
     component: () => import('@/views/ServiceHomeView.vue'),
   },
+  {
+    path: '/voice',
+    name: 'voice-home',
+    redirect: { name: 'voice-screen', params: { screenId: '5-01' } },
+  },
+  createProductionServiceRoute('transfer'),
+  createProductionServiceRoute('bills'),
+  createProductionServiceRoute('living'),
+  createProductionServiceRoute('voice'),
   {
     path: '/prototype',
     name: 'prototype-index',

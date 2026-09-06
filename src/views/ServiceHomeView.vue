@@ -1,35 +1,107 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { useServiceDataStore } from '@/stores/serviceData.js'
 
 const route = useRoute()
+const router = useRouter()
+const serviceData = useServiceDataStore()
 
 const serviceScreens = {
   bills: {
     title: '고지서 목록',
     description: '등록된 고지서 상태와 납부기한을 봅니다.',
-    groups: [[{ label: '전기요금 · 48,200원', selected: true }, { label: '통신요금 · 납부 완료' }]],
+    groups: [
+      [
+        {
+          label: '전기요금 · 48,200원',
+          selected: true,
+          to: { name: 'bills-screen', params: { screenId: '3-04' } },
+        },
+        {
+          label: '통신요금 · 납부 완료',
+          to: { name: 'bills-screen', params: { screenId: '3-07' } },
+        },
+      ],
+    ],
     primaryLabel: '고지서 등록',
+    primaryTo: { name: 'bills-screen', params: { screenId: '3-02' } },
   },
   living: {
     title: '내 정보',
     description: '계좌·알림·이동점포로 이동합니다.',
     groups: [
-      [{ label: '내 계좌', selected: true }, { label: '납부 알림' }],
-      [{ label: '이동점포 정보', selected: true }, { label: '가입 정보' }],
+      [
+        {
+          label: '내 계좌',
+          selected: true,
+          to: { name: 'living-screen', params: { screenId: '4-02' } },
+        },
+        {
+          label: '납부 알림',
+          to: { name: 'living-screen', params: { screenId: '4-06' } },
+        },
+      ],
+      [
+        {
+          label: '이동점포 정보',
+          selected: true,
+          to: { name: 'living-screen', params: { screenId: '4-10' } },
+        },
+        {
+          label: '가입 정보',
+          to: { name: 'living-screen', params: { screenId: '4-14' } },
+        },
+      ],
     ],
     primaryLabel: '',
+    primaryTo: null,
   },
 }
 
 const service = computed(() => (route.name === 'living-home' ? 'living' : 'bills'))
 const screen = computed(() => serviceScreens[service.value])
+const visibleGroups = computed(() => {
+  if (service.value !== 'bills' || !serviceData.bills.length) return screen.value.groups
+
+  return [
+    serviceData.bills.slice(0, 4).map((bill) => ({
+      label: `${bill.payee || '고지서'} · ${formatCurrency(bill.amount)}`,
+      selected: bill.status !== 'PAID',
+      to: {
+        name: 'bills-screen',
+        params: { screenId: '3-04' },
+        query: { billId: bill.billId || bill.id },
+      },
+    })),
+  ]
+})
+const dataSummary = computed(() => {
+  if (service.value === 'bills' && serviceData.bills.length) {
+    return `등록된 고지서 ${serviceData.bills.length}건을 불러왔어요.`
+  }
+  if (service.value === 'living' && serviceData.reminders.length) {
+    return `예정된 알림 ${serviceData.reminders.length}건을 불러왔어요.`
+  }
+  return ''
+})
+
+function formatCurrency(value) {
+  const amount = Number(value)
+  return Number.isFinite(amount) ? `${amount.toLocaleString('ko-KR')}원` : '금액 확인 중'
+}
+
+onMounted(() => {
+  if (service.value === 'bills') serviceData.loadBills().catch(() => {})
+  if (service.value === 'living') serviceData.loadReminders({ status: 'PENDING' }).catch(() => {})
+})
 
 function startVoiceAssist() {
   window.dispatchEvent(new CustomEvent('gwipyeonhan:voice-transfer'))
+  router.push({ name: 'voice-screen', params: { screenId: '5-08' } })
 }
 </script>
 
@@ -71,22 +143,37 @@ function startVoiceAssist() {
           <Card class="service-list-card">
             <CardContent class="service-list-content">
               <div
-                v-for="(group, groupIndex) in screen.groups"
+                v-for="(group, groupIndex) in visibleGroups"
                 :key="groupIndex"
                 class="service-choice-grid"
               >
-                <div
+                <RouterLink
                   v-for="choice in group"
                   :key="choice.label"
+                  :to="choice.to"
                   class="service-choice"
                   :class="{ selected: choice.selected }"
                 >
                   <span>{{ choice.label }}</span>
                   <b v-if="choice.selected">✓</b>
-                </div>
+                </RouterLink>
               </div>
             </CardContent>
           </Card>
+          <p
+            v-if="dataSummary"
+            class="service-home-data-summary"
+            aria-live="polite"
+          >
+            {{ dataSummary }}
+          </p>
+          <p
+            v-if="serviceData.errors[service === 'bills' ? 'bills' : 'reminders']"
+            class="service-home-data-error"
+            role="status"
+          >
+            서버 정보를 불러오지 못했어요. 화면의 기본 안내는 계속 이용할 수 있어요.
+          </p>
         </div>
       </main>
 
@@ -94,7 +181,12 @@ function startVoiceAssist() {
         v-if="screen.primaryLabel"
         class="app-actions service-home-actions"
       >
-        <Button class="w-full">{{ screen.primaryLabel }}</Button>
+        <RouterLink
+          class="service-home-primary"
+          :to="screen.primaryTo"
+        >
+          {{ screen.primaryLabel }}
+        </RouterLink>
       </footer>
 
       <nav

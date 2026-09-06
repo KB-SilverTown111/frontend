@@ -15,7 +15,10 @@
     "preview": "vite preview",
     "test:onboarding": "node --test scripts/onboarding-*.test.mjs",
     "test:prototype": "node --test scripts/prototype-manifest.test.mjs",
-    "test:transfer": "node --test scripts/transfer-home.test.mjs"
+    "test:transfer": "node --test scripts/transfer-home.test.mjs",
+    "test:service-routes": "node --test scripts/service-routes.test.mjs",
+    "test:service-api": "node --test scripts/service-api.test.mjs",
+    "test:service-stores": "node --test scripts/service-stores.test.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,vue}": [
