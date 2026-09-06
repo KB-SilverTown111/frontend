@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -45,6 +45,7 @@ const VOICE_CONVERSATION_SCREENS = {
   transfer: ['2-02', '2-03', '2-04', '2-15', '2-24', '2-25', '2-26'],
   voice: ['5-08'],
 }
+const VOICE_SERVICES = Object.keys(VOICE_CONVERSATION_SCREENS)
 
 const showVoiceControl = computed(() =>
   (VOICE_CONVERSATION_SCREENS[service.value] ?? []).includes(screenId.value),
@@ -470,6 +471,16 @@ function openVoice() {
   router.push({ name: 'voice-screen', params: { screenId: '5-08' } })
 }
 
+/** 서비스를 완전히 벗어날 때만 세션을 닫는다. 같은 서비스 안의 화면 이동은 유지한다. */
+onBeforeRouteLeave((to) => {
+  if (!VOICE_SERVICES.includes(service.value)) return
+  if (to.meta?.service === service.value || to.name === `${service.value}-home`) return
+
+  voiceStore.silence()
+  if (voiceStore.sessionId) voiceStore.closeSession().catch(() => {})
+  voiceStore.transcript = ''
+})
+
 watch([service, screenId], loadScreen, { immediate: true })
 onMounted(() => {
   if (service.value === 'bills' && screenId.value === '3-02A') billStore.reset()
@@ -522,7 +533,7 @@ onMounted(() => {
         </div>
 
         <section
-          v-if="screen?.contentHtml"
+          v-if="screen?.contentHtml && !showVoiceControl"
           class="service-route-screen-content prototype-screen-content"
           :data-variant="screen.variant"
         >
@@ -565,6 +576,7 @@ onMounted(() => {
         <VoiceConversationPanel
           v-if="showVoiceControl"
           :entry-point="service === 'transfer' ? 'TRANSFER' : 'GENERAL_FINANCE'"
+          :screen-id="screenId"
         />
 
         <section
