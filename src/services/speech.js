@@ -29,6 +29,8 @@ const VOICE_NAME_HINTS = {
 export const SPEECH_FALLBACK_MESSAGE = '소리로 읽어드릴 수 없어 화면으로 안내해 드릴게요.'
 
 let keepAliveTimer = null
+/** 발화 세대. 취소된 이전 발화가 최신 발화의 타이머를 끄지 않게 한다. */
+let activeUtteranceId = 0
 
 function synthesis() {
   if (typeof window === 'undefined') return null
@@ -94,19 +96,23 @@ export function resolveVoice(ttsVoice, voices) {
   return matched ?? voices[0]
 }
 
-function stopKeepAlive() {
+function stopKeepAlive(utteranceId) {
+  // 이미 지난 발화의 콜백이면 최신 발화의 타이머를 건드리지 않는다.
+  if (utteranceId !== undefined && utteranceId !== activeUtteranceId) return
   if (keepAliveTimer === null) return
   clearInterval(keepAliveTimer)
   keepAliveTimer = null
 }
 
 /** 크롬은 긴 발화를 중간에 멈춘다. 재생 중에만 pause/resume으로 되살린다. */
-function startKeepAlive() {
+function startKeepAlive(utteranceId) {
+  if (utteranceId !== activeUtteranceId) return
+
   stopKeepAlive()
   keepAliveTimer = setInterval(() => {
     const engine = synthesis()
-    if (!engine?.speaking) {
-      stopKeepAlive()
+    if (!engine?.speaking || utteranceId !== activeUtteranceId) {
+      stopKeepAlive(utteranceId)
       return
     }
     engine.pause()
@@ -117,6 +123,7 @@ function startKeepAlive() {
 /** 재생 중인 안내를 즉시 멈춘다. 마이크 입력 직전과 화면 이탈 시 호출한다. */
 export function stop() {
   const engine = synthesis()
+  activeUtteranceId += 1
   stopKeepAlive()
   if (engine?.speaking || engine?.pending) engine.cancel()
 }
@@ -135,6 +142,7 @@ export async function speak(text, settings = {}) {
 
   stop()
 
+  const utteranceId = (activeUtteranceId += 1)
   const voices = await listVoices()
   const utterance = new window.SpeechSynthesisUtterance(content)
   utterance.lang = 'ko-KR'
@@ -151,7 +159,7 @@ export async function speak(text, settings = {}) {
     const finish = (result) => {
       if (settled) return
       settled = true
-      stopKeepAlive()
+      stopKeepAlive(utteranceId)
       resolve(result)
     }
 
@@ -162,6 +170,6 @@ export async function speak(text, settings = {}) {
     }
 
     synthesis().speak(utterance)
-    startKeepAlive()
+    startKeepAlive(utteranceId)
   })
 }

@@ -40,8 +40,9 @@ export const useVoiceStore = defineStore('voice', () => {
   const sessionClosed = computed(() => ['CLOSED', 'EXPIRED'].includes(session.value?.status ?? ''))
 
   function toUserError(cause) {
-    if (cause?.response) return normalizeApiError(cause)
-    if (cause?.code && cause?.message) {
+    // axios 오류도 응답 없이 code와 message를 가진다. createSttError가 표식을 남긴
+    // 로컬 오류만 그대로 쓰고, 나머지는 normalizeApiError가 사용자 문구로 바꾼다.
+    if (cause?.isLocalError && cause?.code && cause?.message) {
       return {
         status: null,
         code: cause.code,
@@ -75,10 +76,12 @@ export const useVoiceStore = defineStore('voice', () => {
       return value.toString(16)
     })
   }
+  /** 발화 세대. 취소된 이전 발화가 최신 발화의 상태를 덮어쓰지 않게 한다. */
+  let speakGeneration = 0
 
-  /** 재생 중인 안내를 멈춘다. 마이크를 열기 전과 화면을 떠날 때 호출한다. */
   function silence() {
     cancelSpeech()
+    speakGeneration += 1
     speaking.value = false
   }
 
@@ -87,11 +90,14 @@ export const useVoiceStore = defineStore('voice', () => {
     if (!content) return { spoken: false, reason: 'EMPTY_TEXT' }
     if (!isSpeechSupported()) return { spoken: false, reason: 'UNSUPPORTED' }
 
+    speakGeneration += 1
+    const generation = speakGeneration
     speaking.value = true
     try {
       return await speak(content, settings)
     } finally {
-      speaking.value = false
+      // 더 최신 발화가 시작됐다면 상태는 그쪽이 관리한다.
+      if (generation === speakGeneration) speaking.value = false
     }
   }
 
@@ -158,7 +164,11 @@ export const useVoiceStore = defineStore('voice', () => {
   async function sendTextTurn(text) {
     const content = String(text ?? '').trim()
     if (!content) {
-      error.value = toUserError({ code: 'TEXT_INPUT_EMPTY', message: '내용을 입력해 주세요.' })
+      error.value = toUserError({
+        isLocalError: true,
+        code: 'TEXT_INPUT_EMPTY',
+        message: '내용을 입력해 주세요.',
+      })
       throw error.value
     }
 

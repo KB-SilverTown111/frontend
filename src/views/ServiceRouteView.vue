@@ -51,6 +51,12 @@ const showVoiceControl = computed(() =>
   (VOICE_CONVERSATION_SCREENS[service.value] ?? []).includes(screenId.value),
 )
 
+/**
+ * 2-02만 패널의 키보드 입력과 화면 버튼 라벨이 겹친다.
+ * 나머지 음성 화면은 취소·다시 말하기 같은 이동 경로가 화면 버튼에만 있으므로 유지한다.
+ */
+const hideScreenActions = computed(() => service.value === 'transfer' && screenId.value === '2-02')
+
 const liveKind = computed(() => {
   if (service.value === 'living') {
     if (['4-02', '4-03', '4-04'].includes(screenId.value)) return 'accounts'
@@ -533,7 +539,7 @@ onMounted(() => {
         </div>
 
         <section
-          v-if="screen?.contentHtml && !showVoiceControl"
+          v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)"
           class="service-route-screen-content prototype-screen-content"
           :data-variant="screen.variant"
         >

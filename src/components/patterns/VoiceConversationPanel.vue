@@ -149,7 +149,16 @@ function chooseCorrection(choice) {
 async function endConversation() {
   actionError.value = ''
   voiceStore.silence()
-  if (voiceStore.sessionId) await voiceStore.closeSession().catch(() => {})
+  if (!voiceStore.sessionId) return
+
+  try {
+    await voiceStore.closeSession()
+    // 닫힌 세션을 ensureSession이 재사용하지 않도록 비운다.
+    voiceStore.reset()
+  } catch (error) {
+    // 실패 시에는 세션 ID를 남겨 다시 시도할 수 있게 한다.
+    actionError.value = error?.message || '음성 안내를 끄지 못했어요.'
+  }
 }
 
 watch(
