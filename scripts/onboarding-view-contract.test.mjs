@@ -15,3 +15,18 @@ test('permissions step submits signup before completing the UI flow', async () =
     permissionsBranch.indexOf('store.submit()') < permissionsBranch.indexOf('store.finishUiFlow()'),
   )
 })
+
+test('required consent detail guidance explains that agreement is required', async () => {
+  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+
+  assert.match(
+    source,
+    /'mydata-consent': '필수 동의 항목이에요\. 동의해야 가입을 계속할 수 있어요\.'/,
+  )
+  assert.match(
+    source,
+    /'ai-voice-consent': '필수 동의 항목이에요\. 동의해야 음성 명령을 사용할 수 있어요\.'/,
+  )
+  assert.doesNotMatch(source, /'mydata-consent': '동의하지 않아도 송금은 쓸 수 있어요\.'/)
+  assert.doesNotMatch(source, /'ai-voice-consent': '동의하지 않으면 화면 단추로만 쓰게 돼요\.'/)
+})
