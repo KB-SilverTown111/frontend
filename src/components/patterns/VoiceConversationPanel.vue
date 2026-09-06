@@ -71,6 +71,8 @@ function toRows(payload, depth = 0) {
   })
 }
 
+const displayError = computed(() => actionError.value || voiceStore.error?.message || '')
+
 const statusLabel = computed(() => {
   if (voiceStore.listening) return '듣고 있어요'
   if (voiceStore.busy) return '확인하고 있어요'
@@ -78,7 +80,14 @@ const statusLabel = computed(() => {
   return '마이크를 누르고 말씀해 주세요'
 })
 
-const voiceCaptureReady = computed(() => !voiceStore.usesBackendStream)
+/**
+ * 세션이 아직 없으면 서버가 확정한 sttMode를 알 수 없다.
+ * 송금은 진입점만으로 BACKEND_STREAM이 확정이므로 진입점으로 판단한다.
+ */
+const voiceCaptureReady = computed(() => {
+  if (voiceStore.session) return !voiceStore.usesBackendStream
+  return props.entryPoint !== 'TRANSFER'
+})
 const guidanceText = computed(() => voiceStore.ttsText)
 const busy = computed(() => voiceStore.busy || voiceStore.listening)
 const canSubmitDraft = computed(() => !busy.value && draft.value.trim().length > 0)
@@ -229,11 +238,11 @@ onBeforeUnmount(() => {
     </p>
 
     <p
-      v-if="actionError"
+      v-if="displayError"
       class="text-[15px] leading-relaxed text-destructive"
       role="alert"
     >
-      {{ actionError }}
+      {{ displayError }}
     </p>
 
     <div

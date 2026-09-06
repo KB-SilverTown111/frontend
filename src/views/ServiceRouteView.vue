@@ -628,10 +628,7 @@ onMounted(() => {
         </Card>
       </main>
 
-      <footer
-        v-if="screen && (screen.primaryLabel || screen.secondaryLabel)"
-        class="app-actions service-route-actions"
-      >
+      <footer v-if="screen && !showVoiceControl && (screen.primaryLabel || screen.secondaryLabel)">
         <Button
           v-if="screen.primaryLabel"
           class="service-route-primary"
