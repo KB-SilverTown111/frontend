@@ -25,16 +25,15 @@ test('store submits the signup request and saves voice settings with the develop
       phone: '01012345678',
       emergencyContact: {
         name: '김보호',
-        relationship: 'DAUGHTER',
+        relationship: '딸',
         phone: '01098765432',
       },
       consents: {
         TERMS_OF_SERVICE: true,
-        PRIVACY: true,
-        MYDATA: false,
-        AI_VOICE: true,
-        OVERSEAS_TRANSFER: false,
-        AI_FINANCIAL_INFO: false,
+        PRIVACY_COLLECTION: true,
+        MYDATA_FINANCIAL: true,
+        AI_VOICE_DATA: true,
+        AI_FINANCIAL_DATA_OPTIONAL: false,
       },
       voiceSettings: {
         ttsVoice: 'ko-KR-JiMinNeural',
@@ -65,6 +64,19 @@ test('store exposes step errors and clears them after valid input', () => {
 
   assert.equal(store.validate('account'), true)
   assert.deepEqual(store.fieldErrors, {})
+})
+
+test('store logs in with the ID and password fields', async () => {
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  store.draft.loginId = 'silveruser'
+  store.draft.password = 'safe-pass-123'
+
+  const result = await store.login()
+
+  assert.equal(result.ok, true)
+  assert.equal(store.authResult.userId, 'mock-user-001')
+  assert.equal(store.status, 'success')
 })
 
 test('UI-only completion clears transient personal and financial data', () => {

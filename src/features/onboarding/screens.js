@@ -1,3 +1,5 @@
+import { CONSENT_DEFINITIONS } from './contract.js'
+
 export const ONBOARDING_SCREEN_IDS = Object.freeze([
   'start',
   'consent-overview',
@@ -15,7 +17,6 @@ export const ONBOARDING_SCREEN_IDS = Object.freeze([
   'relogin',
   'mydata-consent',
   'ai-voice-consent',
-  'overseas-consent',
   'address-not-found',
   'account-error',
   'missing-fields',
@@ -35,11 +36,10 @@ export const SCREEN_COPY = Object.freeze({
   'emergency-contact': ['비상 연락처', '보호자 또는 가족 연락처를 등록합니다.'],
   permissions: ['권한 이용 안내', '이해했어요를 누르면 필요한 권한을 한 번에 요청합니다.'],
   complete: ['가입 완료', '필수 정보 입력이 끝났습니다.'],
-  login: ['로그인', '등록하신 번호로 본인을 확인합니다.'],
+  login: ['로그인', '아이디와 비밀번호로 본인을 확인합니다.'],
   relogin: ['다시 로그인', '다른 기기에서 접속해 확인이 필요합니다.'],
   'mydata-consent': ['마이데이터 동의', '어떤 정보를 언제까지 쓰는지 알려드립니다.'],
   'ai-voice-consent': ['AI 음성정보 동의', '목소리 정보를 어떻게 쓰는지 알려드립니다.'],
-  'overseas-consent': ['국외 이전 동의', '정보가 해외로 가는 경우를 알려드립니다.'],
   'address-not-found': ['주소를 못 찾았어요', '검색 결과가 없을 때 직접 입력합니다.'],
   'account-error': ['계좌 확인 실패', '계좌 정보를 확인하지 못했습니다.'],
   'missing-fields': ['빠진 곳이 있어요', '꼭 필요한 항목을 알려드립니다.'],
@@ -52,16 +52,11 @@ export function isOnboardingScreen(screenId) {
 }
 
 export const CONSENT_TYPE_BY_SCREEN = Object.freeze({
-  'mydata-consent': 'MYDATA',
-  'ai-voice-consent': 'AI_VOICE',
-  'overseas-consent': 'OVERSEAS_TRANSFER',
+  'mydata-consent': 'MYDATA_FINANCIAL',
+  'ai-voice-consent': 'AI_VOICE_DATA',
 })
 
-export const CONSENT_DETAIL_SEQUENCE = Object.freeze([
-  'mydata-consent',
-  'ai-voice-consent',
-  'overseas-consent',
-])
+export const CONSENT_DETAIL_SEQUENCE = Object.freeze(['mydata-consent', 'ai-voice-consent'])
 
 export const CONSENT_FLOW_RETURN_SCREEN = 'consent-overview'
 
@@ -85,14 +80,17 @@ export function setConsentDecision(draft, screenId, agreed) {
 }
 
 export function resetRequiredConsents(draft) {
-  draft.consents.TERMS_OF_SERVICE = false
-  draft.consents.PRIVACY = false
+  for (const { type, required } of CONSENT_DEFINITIONS) {
+    if (required) draft.consents[type] = false
+  }
 }
 
 export function toggleRequiredConsents(draft) {
-  const agreed = draft.consents.TERMS_OF_SERVICE && draft.consents.PRIVACY
-  draft.consents.TERMS_OF_SERVICE = !agreed
-  draft.consents.PRIVACY = !agreed
+  const requiredTypes = CONSENT_DEFINITIONS.filter(({ required }) => required).map(
+    ({ type }) => type,
+  )
+  const agreed = requiredTypes.every((type) => draft.consents[type])
+  for (const type of requiredTypes) draft.consents[type] = !agreed
 }
 
 function secureRandomIndex(maxExclusive) {

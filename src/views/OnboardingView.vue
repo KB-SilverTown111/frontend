@@ -11,7 +11,11 @@ import OnboardingShell from '@/components/onboarding/OnboardingShell.vue'
 import SecureNumberKeypad from '@/components/onboarding/SecureNumberKeypad.vue'
 import { Input } from '@/components/ui/input'
 import { BANKS, getBank } from '@/features/onboarding/banks.js'
-import { formatPhoneNumber, resolvePostcodeSelection } from '@/features/onboarding/contract.js'
+import {
+  CONSENT_DEFINITIONS,
+  formatPhoneNumber,
+  resolvePostcodeSelection,
+} from '@/features/onboarding/contract.js'
 import { requestPermissionsInOrder } from '@/features/onboarding/permissions.js'
 import { loadPostcodeApi } from '@/features/onboarding/postcode.js'
 import {
@@ -48,15 +52,16 @@ const screenCopy = computed(() => {
   return SCREEN_COPY[screenId.value] || SCREEN_COPY.start
 })
 const selectedBank = computed(() => getBank(store.draft.bankCode))
-const requiredConsentsAgreed = computed(
-  () => store.draft.consents.TERMS_OF_SERVICE && store.draft.consents.PRIVACY,
+const requiredConsentsAgreed = computed(() =>
+  CONSENT_DEFINITIONS.filter(({ required }) => required).every(
+    ({ type }) => store.draft.consents[type],
+  ),
 )
 const optionalConsentGuide = computed(
   () =>
     ({
       'mydata-consent': '동의하지 않아도 송금은 쓸 수 있어요.',
       'ai-voice-consent': '동의하지 않으면 화면 단추로만 쓰게 돼요.',
-      'overseas-consent': '거부하셔도 기본 기능은 그대로예요.',
     })[screenId.value] || '',
 )
 
@@ -75,11 +80,10 @@ const primaryLabel = computed(
       'emergency-contact': '연락처 저장',
       permissions: '이해했어요',
       complete: '홈으로 가기',
-      login: '확인 문자 받기',
+      login: '로그인',
       relogin: '본인 확인하기',
       'mydata-consent': '동의하고 계속',
       'ai-voice-consent': '동의하고 계속',
-      'overseas-consent': '동의하고 계속',
       'address-not-found': '다시 검색',
       'account-error': '다시 입력',
       'missing-fields': '마저 입력하기',
@@ -224,7 +228,7 @@ async function handlePrimary() {
   if (id === 'start') return go('consent-overview')
   if (id === 'consent-overview') return validateAndGo(id, 'basic-info')
   if (id === 'consent-optional') {
-    store.draft.consents.AI_FINANCIAL_INFO =
+    store.draft.consents.AI_FINANCIAL_DATA_OPTIONAL =
       optionalConsentSections.value.purpose || optionalConsentSections.value.retention
     return go('basic-info')
   }
@@ -246,6 +250,8 @@ async function handlePrimary() {
     permissionsRequesting.value = true
     try {
       await requestDevicePermissions()
+      const result = await store.submit()
+      if (!result.ok) return
       store.finishUiFlow()
       return go('complete')
     } finally {
@@ -253,19 +259,19 @@ async function handlePrimary() {
     }
   }
   if (id === 'complete') return requestAppIntent('home')
-  if (id === 'login') return go('mydata-consent')
+  if (id === 'login') {
+    const result = await store.login()
+    if (result.ok) return requestAppIntent('home')
+    return
+  }
   if (id === 'relogin') return go('login')
-  if (id === 'overseas-consent') {
+  if (['mydata-consent', 'ai-voice-consent'].includes(id)) {
     decideConsent(true)
     if (areConsentDetailsAgreed(store.draft)) {
       store.draft.consents.TERMS_OF_SERVICE = true
-      store.draft.consents.PRIVACY = true
+      store.draft.consents.PRIVACY_COLLECTION = true
     }
-    return go(CONSENT_FLOW_RETURN_SCREEN)
-  }
-  if (['mydata-consent', 'ai-voice-consent'].includes(id)) {
-    decideConsent(true)
-    return go(getNextConsentScreen(id))
+    return go(getNextConsentScreen(id) || CONSENT_FLOW_RETURN_SCREEN)
   }
   if (id === 'address-not-found') return go('address')
   if (id === 'account-error') return go('bank-account')
@@ -278,7 +284,7 @@ async function handlePrimary() {
 function handleSecondary() {
   const id = screenId.value
   if (id === 'consent-optional') {
-    store.draft.consents.AI_FINANCIAL_INFO = false
+    store.draft.consents.AI_FINANCIAL_DATA_OPTIONAL = false
     return go('basic-info')
   }
   if (id === 'login') return go('start')
@@ -295,9 +301,10 @@ function handleSecondary() {
 
 <template>
   <OnboardingShell
-    :busy="permissionsRequesting"
+    :busy="permissionsRequesting || store.status === 'loading'"
     :description="screenCopy[1]"
     :hide-back="screenId === 'start'"
+    :error-message="store.submitError?.message || ''"
     :primary-label="primaryLabel"
     :secondary-label="secondaryLabel"
     :bottom-nav="screenId === 'start' ? 'start' : screenId === 'complete' ? 'service' : ''"
@@ -389,6 +396,47 @@ function handleSecondary() {
       v-else-if="screenId === 'basic-info'"
       class="figma-stack"
     >
+      <label class="input-row">
+        <Input
+          v-model="store.draft.loginId"
+          :aria-describedby="store.fieldErrors.loginId ? 'login-id-error' : undefined"
+          aria-label="아이디"
+          :aria-invalid="Boolean(store.fieldErrors.loginId)"
+          autocomplete="username"
+          autocapitalize="none"
+          maxlength="100"
+          placeholder="아이디"
+          spellcheck="false"
+        />
+      </label>
+      <p
+        v-if="store.fieldErrors.loginId"
+        id="login-id-error"
+        class="field-error"
+        role="alert"
+      >
+        {{ store.fieldErrors.loginId }}
+      </p>
+      <label class="input-row">
+        <Input
+          v-model="store.draft.password"
+          :aria-describedby="store.fieldErrors.password ? 'password-error' : undefined"
+          aria-label="비밀번호"
+          :aria-invalid="Boolean(store.fieldErrors.password)"
+          autocomplete="new-password"
+          maxlength="100"
+          placeholder="비밀번호"
+          type="password"
+        />
+      </label>
+      <p
+        v-if="store.fieldErrors.password"
+        id="password-error"
+        class="field-error"
+        role="alert"
+      >
+        {{ store.fieldErrors.password }}
+      </p>
       <label class="input-row">
         <Input
           v-model="store.draft.name"
@@ -698,11 +746,11 @@ function handleSecondary() {
         class="native-select"
       >
         <option value="">관계 선택</option>
-        <option value="SPOUSE">배우자</option>
-        <option value="SON">아들</option>
-        <option value="DAUGHTER">딸</option>
-        <option value="GUARDIAN">보호자</option>
-        <option value="OTHER">기타</option>
+        <option value="배우자">배우자</option>
+        <option value="아들">아들</option>
+        <option value="딸">딸</option>
+        <option value="보호자">보호자</option>
+        <option value="기타">기타</option>
       </select>
       <Input
         v-model="store.draft.emergencyContact.name"
@@ -769,11 +817,48 @@ function handleSecondary() {
       v-else-if="screenId === 'login'"
       class="figma-stack"
     >
-      <div class="detail-row login-phone">
-        <span>휴대전화 번호</span><b>{{ store.draft.phone || '010-0000-0000' }}</b>
-      </div>
-      <div class="detail-row">생년월일 <span>›</span></div>
-      <p class="guide-card"><b>안내</b> 비밀번호 대신 문자로 확인해요.</p>
+      <label class="input-row">
+        <Input
+          v-model="store.draft.loginId"
+          :aria-describedby="store.fieldErrors.loginId ? 'login-id-error' : undefined"
+          aria-label="아이디"
+          :aria-invalid="Boolean(store.fieldErrors.loginId)"
+          autocomplete="username"
+          autocapitalize="none"
+          maxlength="100"
+          placeholder="아이디"
+          spellcheck="false"
+        />
+      </label>
+      <p
+        v-if="store.fieldErrors.loginId"
+        id="login-id-error"
+        class="field-error"
+        role="alert"
+      >
+        {{ store.fieldErrors.loginId }}
+      </p>
+      <label class="input-row">
+        <Input
+          v-model="store.draft.password"
+          :aria-describedby="store.fieldErrors.password ? 'password-error' : undefined"
+          aria-label="비밀번호"
+          :aria-invalid="Boolean(store.fieldErrors.password)"
+          autocomplete="current-password"
+          maxlength="100"
+          placeholder="비밀번호"
+          type="password"
+        />
+      </label>
+      <p
+        v-if="store.fieldErrors.password"
+        id="password-error"
+        class="field-error"
+        role="alert"
+      >
+        {{ store.fieldErrors.password }}
+      </p>
+      <p class="guide-card"><b>안내</b> 아이디와 비밀번호로 로그인해요.</p>
     </section>
 
     <section
@@ -790,59 +875,29 @@ function handleSecondary() {
     </section>
 
     <section
-      v-else-if="['mydata-consent', 'ai-voice-consent', 'overseas-consent'].includes(screenId)"
+      v-else-if="['mydata-consent', 'ai-voice-consent'].includes(screenId)"
       class="figma-stack"
     >
       <div class="status-card status-success">
         <span class="status-icon">✓</span
         ><span
           ><b>{{
-            screenId === 'mydata-consent'
-              ? '내 금융정보 모아보기'
-              : screenId === 'ai-voice-consent'
-                ? '목소리로 명령을 알아들어요'
-                : '음성 처리 서버가 해외에 있어요'
+            screenId === 'mydata-consent' ? '내 금융정보 모아보기' : '목소리로 명령을 알아들어요'
           }}</b
           ><small>{{
             screenId === 'mydata-consent'
               ? '은행·카드 잔액을 한 화면에 보여드려요.'
-              : screenId === 'ai-voice-consent'
-                ? '말씀하신 음성을 글자로 바꿔 처리해요.'
-                : '미국 지역 서버에서 글자로 바꿔요.'
+              : '말씀하신 음성을 글자로 바꿔 처리해요.'
           }}</small></span
         >
       </div>
       <div class="detail-row">
-        <span>{{
-          screenId === 'mydata-consent'
-            ? '가져오는 정보'
-            : screenId === 'ai-voice-consent'
-              ? '저장 여부'
-              : '보내는 곳'
-        }}</span
-        ><b>{{
-          screenId === 'mydata-consent'
-            ? '계좌 잔액 · 거래내역'
-            : screenId === 'ai-voice-consent'
-              ? '처리 후 즉시 삭제'
-              : '미국'
-        }}</b>
+        <span>{{ screenId === 'mydata-consent' ? '가져오는 정보' : '저장 여부' }}</span
+        ><b>{{ screenId === 'mydata-consent' ? '계좌 잔액 · 거래내역' : '처리 후 즉시 삭제' }}</b>
       </div>
       <div class="detail-row">
-        <span>{{
-          screenId === 'mydata-consent'
-            ? '보관 기간'
-            : screenId === 'ai-voice-consent'
-              ? '보관 기간'
-              : '보내는 정보'
-        }}</span
-        ><b>{{
-          screenId === 'mydata-consent'
-            ? '동의 철회 시까지'
-            : screenId === 'ai-voice-consent'
-              ? '저장하지 않음'
-              : '음성 · 인식 결과'
-        }}</b>
+        <span>보관 기간</span
+        ><b>{{ screenId === 'mydata-consent' ? '동의 철회 시까지' : '저장하지 않음' }}</b>
       </div>
       <p class="guide-card"><b>안내</b> {{ optionalConsentGuide }}</p>
     </section>

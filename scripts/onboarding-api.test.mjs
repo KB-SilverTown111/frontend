@@ -52,3 +52,9 @@ test('mock signup and voice settings use the documented response shapes', async 
   assert.equal(voice.pitchMultiplier, 0.97)
   assert.equal(voice.ttsVoice, 'ko-KR-JiMinNeural')
 })
+
+test('mock login uses the documented credential request and auth response shape', async () => {
+  const auth = await mockAuthApi.login({ loginId: 'silveruser', password: 'safe-pass-123' })
+
+  assert.deepEqual(Object.keys(auth), ['accessToken', 'refreshToken', 'expiresAt', 'userId'])
+})

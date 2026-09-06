@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, ref } from 'vue'
 
+import { isAllowedResidentNumberFirstDigit } from '@/features/onboarding/contract.js'
 import { createRandomDigitOrder, pickDecoyDigits } from '@/features/onboarding/screens.js'
 
 const props = defineProps({
@@ -22,7 +23,7 @@ function showPressFeedback(digit) {
 }
 
 function enterDigit(digit) {
-  if (props.modelValue.length >= 7) return
+  if (props.modelValue.length >= 7 || !canEnterDigit(digit)) return
 
   const value = `${props.modelValue}${digit}`
   emit('update:modelValue', value)
@@ -32,6 +33,10 @@ function enterDigit(digit) {
     clearTimeout(closeTimer)
     closeTimer = setTimeout(() => emit('close'), 220)
   }
+}
+
+function canEnterDigit(digit) {
+  return props.modelValue.length > 0 || isAllowedResidentNumberFirstDigit(digit)
 }
 
 function removeDigit() {
@@ -83,6 +88,7 @@ onBeforeUnmount(() => {
           :aria-label="`숫자 ${digit}`"
           class="secure-keypad-key"
           :class="{ active: activeDigits.has(digit) }"
+          :disabled="!canEnterDigit(digit)"
           type="button"
           @click="enterDigit(digit)"
         >

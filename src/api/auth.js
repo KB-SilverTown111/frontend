@@ -8,6 +8,11 @@ export const authApi = {
     return parseAuthResponse(data)
   },
 
+  async login(request) {
+    const { data } = await apiClient.post('/auth/login', request)
+    return parseAuthResponse(data)
+  },
+
   async saveVoiceSettings(request, accessToken) {
     const { data } = await apiClient.put('/users/me/voice-settings', request, {
       headers: { Authorization: `Bearer ${accessToken}` },

@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildLoginRequest,
   buildSignUpRequest,
   buildVoiceSettingsRequest,
+  CONSENT_DEFINITIONS,
   createOnboardingDraft,
   formatPhoneNumber,
   parseAuthResponse,
@@ -27,16 +29,15 @@ function completeDraft() {
     phone: '01012345678',
     emergencyContact: {
       name: '김보호',
-      relationship: 'DAUGHTER',
+      relationship: '딸',
       phone: '01098765432',
     },
     consents: {
       TERMS_OF_SERVICE: true,
-      PRIVACY: true,
-      MYDATA: false,
-      AI_VOICE: true,
-      OVERSEAS_TRANSFER: false,
-      AI_FINANCIAL_INFO: false,
+      PRIVACY_COLLECTION: true,
+      MYDATA_FINANCIAL: true,
+      AI_VOICE_DATA: true,
+      AI_FINANCIAL_DATA_OPTIONAL: false,
     },
     voiceSettings: {
       ttsVoice: 'ko-KR-JiMinNeural',
@@ -51,7 +52,7 @@ test('required consent refusal blocks the consent step while optional refusal do
 
   assert.deepEqual(validateStep('consents', draft), {})
 
-  draft.consents.PRIVACY = false
+  draft.consents.PRIVACY_COLLECTION = false
   assert.deepEqual(validateStep('consents', draft), {
     consents: '필수 동의 항목을 확인해 주세요.',
   })
@@ -63,6 +64,15 @@ test('identity validation rejects malformed resident registration number parts',
 
   assert.deepEqual(validateStep('identity', draft), {
     residentNumberBack: '주민등록번호 뒷자리 7자리를 입력해 주세요.',
+  })
+})
+
+test('identity validation matches the backend resident registration number range', () => {
+  const draft = completeDraft()
+  draft.residentNumberBack = '9345678'
+
+  assert.deepEqual(validateStep('identity', draft), {
+    residentNumberBack: '주민등록번호 뒷자리 형식이 올바르지 않습니다.',
   })
 })
 
@@ -89,6 +99,28 @@ test('each data-entry step reports only its own invalid fields', () => {
   assert.deepEqual(validateStep('finance', financeDraft), {
     accountNumber: '계좌번호를 입력해 주세요.',
     emergencyContactPhone: '비상 연락처 번호를 확인해 주세요.',
+  })
+})
+
+test('basic info validation includes login credentials and identity fields', () => {
+  const draft = completeDraft()
+  draft.loginId = 'ab'
+  draft.password = 'short'
+  draft.name = ''
+  draft.gender = ''
+
+  assert.deepEqual(validateStep('basic-info', draft), {
+    loginId: '아이디는 영문과 숫자를 사용해 4자 이상 입력해 주세요.',
+    password: '비밀번호는 8자 이상 입력해 주세요.',
+    name: '이름을 입력해 주세요.',
+    gender: '성별을 선택해 주세요.',
+  })
+})
+
+test('login request matches the documented credential-only API shape', () => {
+  assert.deepEqual(buildLoginRequest({ loginId: '  silveruser  ', password: 'safe-pass-123' }), {
+    loginId: 'silveruser',
+    password: 'safe-pass-123',
   })
 })
 
@@ -122,18 +154,30 @@ test('signup request matches the documented API shape without UI-only fields', (
     phone: '01012345678',
     emergencyContact: {
       name: '김보호',
-      relationship: 'DAUGHTER',
+      relationship: '딸',
       phone: '01098765432',
     },
     consents: [
       { type: 'TERMS_OF_SERVICE', agreed: true, documentVersion: '2026-09-05' },
-      { type: 'PRIVACY', agreed: true, documentVersion: '2026-09-05' },
-      { type: 'MYDATA', agreed: false, documentVersion: '2026-09-05' },
-      { type: 'AI_VOICE', agreed: true, documentVersion: '2026-09-05' },
-      { type: 'OVERSEAS_TRANSFER', agreed: false, documentVersion: '2026-09-05' },
-      { type: 'AI_FINANCIAL_INFO', agreed: false, documentVersion: '2026-09-05' },
+      { type: 'PRIVACY_COLLECTION', agreed: true, documentVersion: '2026-09-05' },
+      { type: 'MYDATA_FINANCIAL', agreed: true, documentVersion: '2026-09-05' },
+      { type: 'AI_VOICE_DATA', agreed: true, documentVersion: '2026-09-05' },
+      { type: 'AI_FINANCIAL_DATA_OPTIONAL', agreed: false, documentVersion: '2026-09-05' },
     ],
   })
+})
+
+test('consent definitions use only the backend allowlist and required flags', () => {
+  assert.deepEqual(
+    CONSENT_DEFINITIONS.map(({ type, required }) => ({ type, required })),
+    [
+      { type: 'TERMS_OF_SERVICE', required: true },
+      { type: 'PRIVACY_COLLECTION', required: true },
+      { type: 'MYDATA_FINANCIAL', required: true },
+      { type: 'AI_VOICE_DATA', required: true },
+      { type: 'AI_FINANCIAL_DATA_OPTIONAL', required: false },
+    ],
+  )
 })
 
 test('voice settings request preserves only the documented fields', () => {
@@ -186,10 +230,10 @@ test('new drafts do not share nested consent or emergency contact state', () => 
   const first = createOnboardingDraft()
   const second = createOnboardingDraft()
 
-  first.consents.PRIVACY = true
+  first.consents.PRIVACY_COLLECTION = true
   first.emergencyContact.name = '변경됨'
 
-  assert.equal(second.consents.PRIVACY, false)
+  assert.equal(second.consents.PRIVACY_COLLECTION, false)
   assert.equal(second.emergencyContact.name, '')
 })
 

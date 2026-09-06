@@ -6,7 +6,7 @@ import { ONBOARDING_SCREEN_IDS, setConsentDecision } from '../src/features/onboa
 import * as onboardingScreens from '../src/features/onboarding/screens.js'
 import { BANKS } from '../src/features/onboarding/banks.js'
 
-test('all 22 Figma onboarding frames are represented as route-safe screens', () => {
+test('supported onboarding frames are represented as route-safe screens', () => {
   assert.deepEqual(ONBOARDING_SCREEN_IDS, [
     'start',
     'consent-overview',
@@ -24,7 +24,6 @@ test('all 22 Figma onboarding frames are represented as route-safe screens', () 
     'relogin',
     'mydata-consent',
     'ai-voice-consent',
-    'overseas-consent',
     'address-not-found',
     'account-error',
     'missing-fields',
@@ -33,36 +32,57 @@ test('all 22 Figma onboarding frames are represented as route-safe screens', () 
   ])
 })
 
-test('optional consent screens update the API draft for both choices', () => {
-  const draft = { consents: { MYDATA: false, AI_VOICE: false, OVERSEAS_TRANSFER: false } }
+test('consent detail screens update the API draft for both choices', () => {
+  const draft = { consents: { MYDATA_FINANCIAL: false, AI_VOICE_DATA: false } }
 
   assert.equal(setConsentDecision(draft, 'mydata-consent', true), true)
-  assert.equal(draft.consents.MYDATA, true)
+  assert.equal(draft.consents.MYDATA_FINANCIAL, true)
   assert.equal(setConsentDecision(draft, 'mydata-consent', false), true)
-  assert.equal(draft.consents.MYDATA, false)
+  assert.equal(draft.consents.MYDATA_FINANCIAL, false)
   assert.equal(setConsentDecision(draft, 'unknown', true), false)
 })
 
 test('starting onboarding clears required consent values left in the current tab', () => {
-  const draft = { consents: { TERMS_OF_SERVICE: true, PRIVACY: true, MYDATA: true } }
+  const draft = {
+    consents: {
+      TERMS_OF_SERVICE: true,
+      PRIVACY_COLLECTION: true,
+      MYDATA_FINANCIAL: true,
+      AI_VOICE_DATA: true,
+      AI_FINANCIAL_DATA_OPTIONAL: true,
+    },
+  }
 
   onboardingScreens.resetRequiredConsents(draft)
 
   assert.equal(draft.consents.TERMS_OF_SERVICE, false)
-  assert.equal(draft.consents.PRIVACY, false)
-  assert.equal(draft.consents.MYDATA, true)
+  assert.equal(draft.consents.PRIVACY_COLLECTION, false)
+  assert.equal(draft.consents.MYDATA_FINANCIAL, false)
+  assert.equal(draft.consents.AI_VOICE_DATA, false)
+  assert.equal(draft.consents.AI_FINANCIAL_DATA_OPTIONAL, true)
 })
 
-test('required consent selection toggles both required API consent values', () => {
-  const draft = { consents: { TERMS_OF_SERVICE: false, PRIVACY: false } }
+test('required consent selection toggles every backend-required consent value', () => {
+  const draft = {
+    consents: {
+      TERMS_OF_SERVICE: false,
+      PRIVACY_COLLECTION: false,
+      MYDATA_FINANCIAL: false,
+      AI_VOICE_DATA: false,
+    },
+  }
 
   onboardingScreens.toggleRequiredConsents(draft)
   assert.equal(draft.consents.TERMS_OF_SERVICE, true)
-  assert.equal(draft.consents.PRIVACY, true)
+  assert.equal(draft.consents.PRIVACY_COLLECTION, true)
+  assert.equal(draft.consents.MYDATA_FINANCIAL, true)
+  assert.equal(draft.consents.AI_VOICE_DATA, true)
 
   onboardingScreens.toggleRequiredConsents(draft)
   assert.equal(draft.consents.TERMS_OF_SERVICE, false)
-  assert.equal(draft.consents.PRIVACY, false)
+  assert.equal(draft.consents.PRIVACY_COLLECTION, false)
+  assert.equal(draft.consents.MYDATA_FINANCIAL, false)
+  assert.equal(draft.consents.AI_VOICE_DATA, false)
 })
 
 test('every supplied bank has default and selected icon assets', () => {

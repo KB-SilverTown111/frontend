@@ -9,35 +9,28 @@ export const CONSENT_DEFINITIONS = Object.freeze([
     required: true,
   },
   {
-    type: 'PRIVACY',
+    type: 'PRIVACY_COLLECTION',
     title: '개인정보 수집·이용',
     description: '본인 확인과 금융 서비스 제공에 사용합니다.',
     retention: '회원 탈퇴 시까지',
     required: true,
   },
   {
-    type: 'MYDATA',
+    type: 'MYDATA_FINANCIAL',
     title: '마이데이터 수집·이용',
     description: '계좌와 거래 정보를 한곳에서 보여드릴 때 사용합니다.',
     retention: '동의 철회 시까지',
-    required: false,
+    required: true,
   },
   {
-    type: 'AI_VOICE',
+    type: 'AI_VOICE_DATA',
     title: 'AI 음성정보 이용',
     description: '음성 명령과 개인별 말하기 설정에 사용합니다.',
     retention: '음성 처리 후 즉시 삭제',
-    required: false,
+    required: true,
   },
   {
-    type: 'OVERSEAS_TRANSFER',
-    title: '개인정보 국외 이전',
-    description: '해외 음성 처리 서버를 사용할 때 적용됩니다.',
-    retention: '음성 처리 후 즉시 삭제',
-    required: false,
-  },
-  {
-    type: 'AI_FINANCIAL_INFO',
+    type: 'AI_FINANCIAL_DATA_OPTIONAL',
     title: 'AI 금융정보 활용',
     description: '개인화된 금융 안내를 제공할 때 사용합니다.',
     retention: '동의 철회 시까지',
@@ -78,6 +71,10 @@ function digits(value) {
   return String(value ?? '').replace(/\D/g, '')
 }
 
+export function isAllowedResidentNumberFirstDigit(value) {
+  return /^[1-8]$/.test(String(value ?? ''))
+}
+
 export function formatPhoneNumber(value) {
   const normalized = digits(value).slice(0, 11)
   if (normalized.length <= 3) return normalized
@@ -106,7 +103,7 @@ export function validateStep(stepId, draft) {
     if (missingRequired) errors.consents = '필수 동의 항목을 확인해 주세요.'
   }
 
-  if (stepId === 'account') {
+  if (['account', 'basic-info', 'login'].includes(stepId)) {
     if (!/^[a-zA-Z0-9]{4,}$/.test(String(draft.loginId ?? ''))) {
       errors.loginId = '아이디는 영문과 숫자를 사용해 4자 이상 입력해 주세요.'
     }
@@ -121,11 +118,15 @@ export function validateStep(stepId, draft) {
   }
 
   if (['identity', 'resident-number'].includes(stepId)) {
+    const residentNumberBack = digits(draft.residentNumberBack)
+
     if (!/^\d{6}$/.test(digits(draft.residentNumberFront))) {
       errors.residentNumberFront = '주민등록번호 앞자리 6자리를 입력해 주세요.'
     }
-    if (!/^\d{7}$/.test(digits(draft.residentNumberBack))) {
+    if (!/^\d{7}$/.test(residentNumberBack)) {
       errors.residentNumberBack = '주민등록번호 뒷자리 7자리를 입력해 주세요.'
+    } else if (!isAllowedResidentNumberFirstDigit(residentNumberBack[0])) {
+      errors.residentNumberBack = '주민등록번호 뒷자리 형식이 올바르지 않습니다.'
     }
   }
 
@@ -196,6 +197,14 @@ export function buildSignUpRequest(draft) {
       agreed: Boolean(draft.consents[type]),
       documentVersion: CONSENT_DOCUMENT_VERSION,
     })),
+  }
+}
+
+/** @returns {{ loginId: string, password: string }} */
+export function buildLoginRequest(draft) {
+  return {
+    loginId: String(draft.loginId).trim(),
+    password: String(draft.password),
   }
 }
 

@@ -42,25 +42,20 @@ test('adjacent navigation returns previous and next route-safe step ids', () => 
 })
 
 test('consent detail screens advance in the required order', () => {
-  assert.deepEqual(CONSENT_DETAIL_SEQUENCE, [
-    'mydata-consent',
-    'ai-voice-consent',
-    'overseas-consent',
-  ])
+  assert.deepEqual(CONSENT_DETAIL_SEQUENCE, ['mydata-consent', 'ai-voice-consent'])
   assert.equal(CONSENT_FLOW_RETURN_SCREEN, 'consent-overview')
   assert.equal(getNextConsentScreen('mydata-consent'), 'ai-voice-consent')
-  assert.equal(getNextConsentScreen('ai-voice-consent'), 'overseas-consent')
-  assert.equal(getNextConsentScreen('overseas-consent'), null)
+  assert.equal(getNextConsentScreen('ai-voice-consent'), null)
   assert.equal(getNextConsentScreen('missing'), null)
   assert.equal(
     areConsentDetailsAgreed({
-      consents: { MYDATA: true, AI_VOICE: true, OVERSEAS_TRANSFER: false },
+      consents: { MYDATA_FINANCIAL: true, AI_VOICE_DATA: false },
     }),
     false,
   )
   assert.equal(
     areConsentDetailsAgreed({
-      consents: { MYDATA: true, AI_VOICE: true, OVERSEAS_TRANSFER: true },
+      consents: { MYDATA_FINANCIAL: true, AI_VOICE_DATA: true },
     }),
     true,
   )

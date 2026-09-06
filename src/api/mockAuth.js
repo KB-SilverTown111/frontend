@@ -10,6 +10,15 @@ export const mockAuthApi = {
     })
   },
 
+  async login() {
+    return parseAuthResponse({
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token',
+      expiresAt: '2099-12-31T23:59:59Z',
+      userId: 'mock-user-001',
+    })
+  },
+
   async saveVoiceSettings(request) {
     return parseVoiceSettingsResponse({
       ...request,

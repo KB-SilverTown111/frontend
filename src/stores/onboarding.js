@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { normalizeApiError } from '../api/errors.js'
 import { onboardingApi } from '../api/onboarding.js'
 import {
+  buildLoginRequest,
   buildSignUpRequest,
   buildVoiceSettingsRequest,
   createOnboardingDraft,
@@ -56,6 +57,23 @@ export const useOnboardingStore = defineStore('onboarding', {
           this.voiceWarning = '음성 설정은 가입 후 다시 저장할 수 있어요.'
         }
 
+        this.status = 'success'
+        return { ok: true }
+      } catch (error) {
+        this.submitError = normalizeApiError(error)
+        this.status = 'error'
+        return { ok: false, stepId: null }
+      }
+    },
+
+    async login() {
+      if (!this.validate('login')) return { ok: false, stepId: 'login' }
+
+      this.status = 'loading'
+      this.submitError = null
+
+      try {
+        this.authResult = await onboardingApi.login(buildLoginRequest(this.draft))
         this.status = 'success'
         return { ok: true }
       } catch (error) {
