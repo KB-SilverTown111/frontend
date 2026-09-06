@@ -19,6 +19,7 @@ import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
 import { useVoiceStore } from '@/stores/voice.js'
+import VoiceConversationPanel from '@/components/patterns/VoiceConversationPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,10 +41,13 @@ const actionRoutes = computed(() => getProductionActionRoutes(service.value, scr
 const homeRoute = computed(() => getProductionHomeRoute(service.value))
 const primaryRoute = computed(() => actionRoutes.value.primary)
 const secondaryRoute = computed(() => actionRoutes.value.secondary)
-const showVoiceControl = computed(
-  () =>
-    (service.value === 'transfer' && screenId.value === '2-02') ||
-    (service.value === 'voice' && screenId.value === '5-08'),
+const VOICE_CONVERSATION_SCREENS = {
+  transfer: ['2-02', '2-03', '2-04', '2-15', '2-24', '2-25', '2-26'],
+  voice: ['5-08'],
+}
+
+const showVoiceControl = computed(() =>
+  (VOICE_CONVERSATION_SCREENS[service.value] ?? []).includes(screenId.value),
 )
 
 const liveKind = computed(() => {
@@ -558,18 +562,10 @@ onMounted(() => {
           />
         </label>
 
-        <section
-          v-if="showVoiceControl && service === 'transfer'"
-          class="service-route-voice-control"
-        >
-          <Button
-            :disabled="isBusy"
-            @click="listenForVoice"
-          >
-            {{ voiceStore.listening ? '듣고 있어요…' : '음성으로 말하기' }}
-          </Button>
-          <p v-if="voiceStore.transcript">“{{ voiceStore.transcript }}”</p>
-        </section>
+        <VoiceConversationPanel
+          v-if="showVoiceControl"
+          :entry-point="service === 'transfer' ? 'TRANSFER' : 'GENERAL_FINANCE'"
+        />
 
         <section
           v-if="liveKind"
