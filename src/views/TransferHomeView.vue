@@ -1,17 +1,28 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { useServiceDataStore } from '@/stores/serviceData.js'
 
-const selectedService = ref('transfer')
+const router = useRouter()
+const serviceData = useServiceDataStore()
 
-function selectService(service) {
-  selectedService.value = service
-}
+const primaryAccount = computed(() => serviceData.accounts[0] || null)
+const balanceLabel = computed(() => {
+  const balance = Number(primaryAccount.value?.balance)
+  if (Number.isFinite(balance)) return `${balance.toLocaleString('ko-KR')}원`
+  return serviceData.loading.accounts ? '잔액을 불러오는 중' : '1,240,000원'
+})
+
+onMounted(() => {
+  serviceData.loadAccounts({ active: true }).catch(() => {})
+})
 
 function startVoiceTransfer() {
   window.dispatchEvent(new CustomEvent('gwipyeonhan:voice-transfer'))
+  router.push({ name: 'transfer-screen', params: { screenId: '2-02' } })
 }
 </script>
 
@@ -58,36 +69,37 @@ function startVoiceTransfer() {
               </span>
               <div>
                 <h2>사용 가능 금액</h2>
-                <p>1,240,000원</p>
+                <p>{{ balanceLabel }}</p>
               </div>
             </CardContent>
           </Card>
+
+          <p
+            v-if="serviceData.errors.accounts"
+            class="transfer-data-error"
+            role="status"
+          >
+            잔액을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.
+          </p>
 
           <div
             aria-label="주요 서비스"
             class="transfer-choice-grid"
             role="group"
           >
-            <Button
-              :aria-pressed="selectedService === 'transfer'"
-              class="transfer-choice"
-              :class="{ selected: selectedService === 'transfer' }"
-              variant="secondary"
-              @click="selectService('transfer')"
+            <RouterLink
+              :to="{ name: 'transfer-screen', params: { screenId: '2-02' } }"
+              class="transfer-choice selected"
             >
               <span>송금하기</span>
-              <b v-if="selectedService === 'transfer'">✓</b>
-            </Button>
-            <Button
-              :aria-pressed="selectedService === 'bills'"
+              <b>✓</b>
+            </RouterLink>
+            <RouterLink
+              :to="{ name: 'bills-home' }"
               class="transfer-choice"
-              :class="{ selected: selectedService === 'bills' }"
-              variant="secondary"
-              @click="selectService('bills')"
             >
               <span>고지서 확인</span>
-              <b v-if="selectedService === 'bills'">✓</b>
-            </Button>
+            </RouterLink>
           </div>
         </div>
       </main>
