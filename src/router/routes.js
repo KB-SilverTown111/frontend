@@ -71,21 +71,6 @@ export const routes = [
   createProductionServiceRoute('living'),
   createProductionServiceRoute('voice'),
   {
-    path: '/prototype',
-    name: 'prototype-index',
-    component: () => import('@/views/PrototypeIndexView.vue'),
-  },
-  {
-    path: '/prototype/help',
-    name: 'prototype-help',
-    component: () => import('@/views/PrototypeHelpView.vue'),
-  },
-  {
-    path: '/prototype/:flow/:screenId',
-    name: 'prototype-screen',
-    component: () => import('@/views/PrototypeScreenView.vue'),
-  },
-  {
     path: '/design-system',
     name: 'design-system',
     component: () => import('@/views/DesignSystemView.vue'),

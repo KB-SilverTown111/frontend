@@ -4,7 +4,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { stripProductionSelectionIndicators } from '@/prototype/stripGuidanceCards.js'
+import { stripProductionSelectionIndicators } from '@/services/screenContent.js'
 import {
   getProductionActionRoutes,
   getProductionHomeRoute,
@@ -509,7 +509,7 @@ onMounted(() => {
             !(service === 'transfer' && screenId === '2-08') &&
             !hideScreenActions
           "
-          class="service-route-screen-content prototype-screen-content"
+          class="service-route-screen-content screen-content"
           :data-variant="screen.variant"
         >
           <!-- Content is loaded from the reviewed reference screen data. -->

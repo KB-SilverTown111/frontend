@@ -100,8 +100,11 @@ test('home actions point to production detail routes', () => {
   assert.match(serviceHomeSource, /voice-screen/)
 })
 
-test('production route screen is not implemented with prototype views', () => {
-  assert.doesNotMatch(routeViewSource, /PrototypeScreenView|prototype-stage|ScreenContent/)
+test('production route screen does not use prototype-only components', () => {
+  assert.doesNotMatch(
+    routeViewSource,
+    /Prototype(Index|Help|Screen)View|MobileScreenShell|ScreenContent/,
+  )
   assert.match(
     routeViewSource,
     /v-html="stripProductionSelectionIndicators\(screen\.contentHtml\)"/,
