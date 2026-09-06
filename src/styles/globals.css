@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import './prototype.css';
+@import './screen-content.css';
 @import './onboarding.css';
 @import './transfer.css';
 
@@ -52,6 +52,20 @@
   --input: #e2dcc3;
   --ring: #8ebd9d;
   --radius: 0.875rem;
+  --card-border-width: 2px;
+  --card-min-height: 72px;
+  --font-size-title: 30px;
+  --font-size-body: 19px;
+  --font-size-action: 24px;
+  --font-size-display: 36px;
+  --touch-target-min: 64px;
+}
+
+:root[data-font-scale='large'] {
+  --font-size-title: 34px;
+  --font-size-body: 21px;
+  --font-size-action: 28px;
+  --font-size-display: 40px;
 }
 
 * {

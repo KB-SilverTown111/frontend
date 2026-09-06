@@ -19,10 +19,10 @@ const serviceLabels = {
 }
 
 const referenceScreenLoaders = {
-  transfer: () => import('../prototype/data/transfer.js'),
-  bills: () => import('../prototype/data/bills.js'),
-  living: () => import('../prototype/data/living.js'),
-  voice: () => import('../prototype/data/voice.js'),
+  transfer: () => import('./screenData/transfer.js'),
+  bills: () => import('./screenData/bills.js'),
+  living: () => import('./screenData/living.js'),
+  voice: () => import('./screenData/voice.js'),
 }
 
 export const productionServiceScreens = Object.fromEntries(

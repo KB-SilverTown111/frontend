@@ -52,6 +52,16 @@ export const routes = [
     component: () => import('@/views/ServiceHomeView.vue'),
   },
   {
+    path: '/mypage',
+    name: 'my-page',
+    component: () => import('@/views/MyPageView.vue'),
+  },
+  {
+    path: '/mypage/font-size',
+    name: 'my-page-font-size',
+    component: () => import('@/views/MyPageFontSizeView.vue'),
+  },
+  {
     path: '/voice',
     name: 'voice-home',
     redirect: { name: 'voice-screen', params: { screenId: '5-01' } },
@@ -60,21 +70,6 @@ export const routes = [
   createProductionServiceRoute('bills'),
   createProductionServiceRoute('living'),
   createProductionServiceRoute('voice'),
-  {
-    path: '/prototype',
-    name: 'prototype-index',
-    component: () => import('@/views/PrototypeIndexView.vue'),
-  },
-  {
-    path: '/prototype/help',
-    name: 'prototype-help',
-    component: () => import('@/views/PrototypeHelpView.vue'),
-  },
-  {
-    path: '/prototype/:flow/:screenId',
-    name: 'prototype-screen',
-    component: () => import('@/views/PrototypeScreenView.vue'),
-  },
   {
     path: '/design-system',
     name: 'design-system',

@@ -27,7 +27,8 @@ import {
   resetRequiredConsents,
   setConsentDecision,
 } from '@/features/onboarding/screens.js'
-import { getAdjacentStep } from '@/features/onboarding/steps.js'
+import { getAdjacentStep, getOnboardingDisplayProgress } from '@/features/onboarding/steps.js'
+import { FONT_SCALE, applyFontScale, readFontScale, saveFontScale } from '@/services/fontScale.js'
 import { useOnboardingStore } from '@/stores/onboarding.js'
 
 const route = useRoute()
@@ -43,6 +44,8 @@ const postcodeLoading = ref(false)
 const postcodeOpen = ref(false)
 const residentKeypadOpen = ref(false)
 const permissionsRequesting = ref(false)
+const fontScale = ref(readFontScale())
+applyFontScale(fontScale.value)
 
 const screenId = computed(() => String(route.params.stepId || 'start'))
 const screenCopy = computed(() => {
@@ -51,20 +54,13 @@ const screenCopy = computed(() => {
   }
   return SCREEN_COPY[screenId.value] || SCREEN_COPY.start
 })
+const progress = computed(() => getOnboardingDisplayProgress(screenId.value))
 const selectedBank = computed(() => getBank(store.draft.bankCode))
 const requiredConsentsAgreed = computed(() =>
   CONSENT_DEFINITIONS.filter(({ required }) => required).every(
     ({ type }) => store.draft.consents[type],
   ),
 )
-const optionalConsentGuide = computed(
-  () =>
-    ({
-      'mydata-consent': '필수 동의 항목이에요. 동의해야 가입을 계속할 수 있어요.',
-      'ai-voice-consent': '필수 동의 항목이에요. 동의해야 음성 명령을 사용할 수 있어요.',
-    })[screenId.value] || '',
-)
-
 const primaryLabel = computed(
   () =>
     ({
@@ -106,6 +102,11 @@ const secondaryLabel = computed(
     })[screenId.value] || '',
 )
 
+function setFontScale(value) {
+  fontScale.value = saveFontScale(value)
+  applyFontScale(fontScale.value)
+}
+
 watch(
   screenId,
   (value) => {
@@ -133,8 +134,14 @@ function requestAppIntent(intent) {
     home: '홈 화면을 여는 앱 이벤트를 보냈습니다.',
     bills: '고지서 화면을 여는 앱 이벤트를 보냈습니다.',
     living: '생활금융 화면을 여는 앱 이벤트를 보냈습니다.',
+    mypage: '마이페이지 화면을 여는 앱 이벤트를 보냈습니다.',
     'open-settings': 'Capacitor 앱에서 기기 설정을 여는 이벤트를 보냈습니다.',
   }[intent]
+}
+
+function openMyPage() {
+  requestAppIntent('mypage')
+  return router.push({ name: 'my-page' })
 }
 
 function decideConsent(agreed) {
@@ -211,6 +218,8 @@ async function openPostcode() {
 
 function goBack() {
   store.submitError = null
+  if (screenId.value === 'start') return go('login')
+
   const recovery = {
     'bank-select': 'bank-account',
     'address-not-found': 'address',
@@ -310,9 +319,10 @@ function handleSecondary() {
   <OnboardingShell
     :busy="permissionsRequesting || store.status === 'loading'"
     :description="screenCopy[1]"
-    :hide-back="screenId === 'start'"
+    :hide-back="screenId === 'login'"
     :error-message="store.submitError?.message || ''"
     :primary-label="primaryLabel"
+    :progress="progress"
     :secondary-label="secondaryLabel"
     :bottom-nav="screenId === 'complete' ? 'service' : ''"
     :title="screenCopy[0]"
@@ -320,6 +330,7 @@ function handleSecondary() {
     @bills="requestAppIntent('bills')"
     @home="requestAppIntent('home')"
     @living="requestAppIntent('living')"
+    @mypage="openMyPage"
     @primary="handlePrimary"
     @secondary="handleSecondary"
   >
@@ -364,7 +375,6 @@ function handleSecondary() {
       >
         {{ store.fieldErrors.consents }}
       </p>
-      <p class="guide-card"><b>안내</b> 선택하지 않아도 기본 서비스를 이용할 수 있어요.</p>
     </section>
 
     <section
@@ -549,7 +559,6 @@ function handleSecondary() {
       >
         {{ store.fieldErrors.residentNumberFront || store.fieldErrors.residentNumberBack }}
       </p>
-      <p class="guide-card"><b>안내</b> 민감 정보는 화면에서 가려 보여드립니다.</p>
       <SecureNumberKeypad
         v-if="residentKeypadOpen"
         v-model="store.draft.residentNumberBack"
@@ -611,8 +620,6 @@ function handleSecondary() {
       >
         {{ postcodeError }}
       </p>
-      <p class="guide-card"><b>안내</b> 검색이 어려우면 직접 입력할 수 있어요.</p>
-
       <div
         v-if="postcodeOpen"
         aria-labelledby="postcode-title"
@@ -822,6 +829,34 @@ function handleSecondary() {
       v-else-if="screenId === 'login'"
       class="figma-stack"
     >
+      <fieldset class="font-size-picker">
+        <legend>글씨 크기</legend>
+        <p>보기 편한 크기를 선택해 주세요.</p>
+        <div
+          class="font-size-options"
+          role="group"
+          aria-label="글씨 크기 선택"
+        >
+          <button
+            :aria-pressed="fontScale === FONT_SCALE.standard"
+            class="font-size-option"
+            :class="{ selected: fontScale === FONT_SCALE.standard }"
+            type="button"
+            @click="setFontScale(FONT_SCALE.standard)"
+          >
+            기본 크기
+          </button>
+          <button
+            :aria-pressed="fontScale === FONT_SCALE.large"
+            class="font-size-option"
+            :class="{ selected: fontScale === FONT_SCALE.large }"
+            type="button"
+            @click="setFontScale(FONT_SCALE.large)"
+          >
+            큰 글씨
+          </button>
+        </div>
+      </fieldset>
       <label class="input-row">
         <Input
           v-model="store.draft.loginId"
@@ -863,7 +898,6 @@ function handleSecondary() {
       >
         {{ store.fieldErrors.password }}
       </p>
-      <p class="guide-card"><b>안내</b> 아이디와 비밀번호로 로그인해요.</p>
     </section>
 
     <section
@@ -904,7 +938,6 @@ function handleSecondary() {
         <span>보관 기간</span
         ><b>{{ screenId === 'mydata-consent' ? '동의 철회 시까지' : '저장하지 않음' }}</b>
       </div>
-      <p class="guide-card"><b>안내</b> {{ optionalConsentGuide }}</p>
     </section>
 
     <section
@@ -953,12 +986,6 @@ function handleSecondary() {
       >
         주소 다시 검색 <span>›</span>
       </button>
-      <p
-        v-if="screenId === 'address-not-found'"
-        class="guide-card"
-      >
-        <b>안내</b> 찾기 어려우시면 직접 적으셔도 돼요.
-      </p>
       <div
         v-if="screenId === 'account-error'"
         class="figma-stack"
@@ -987,23 +1014,11 @@ function handleSecondary() {
           생년월일 <span>›</span>
         </button>
       </div>
-      <p
-        v-if="screenId === 'microphone-denied'"
-        class="guide-card"
-      >
-        <b>안내</b> 설정 › 귀편한 금융 › 마이크에서 켜실 수 있어요.
-      </p>
-      <p
-        v-if="screenId === 'notification-denied'"
-        class="guide-card"
-      >
-        <b>안내</b> 알림을 켜두시면 놓치는 일이 줄어요.
-      </p>
     </section>
 
     <p
       v-if="actionNotice"
-      class="guide-card action-notice"
+      class="action-notice"
       role="status"
     >
       {{ actionNotice }}

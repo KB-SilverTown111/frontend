@@ -6,7 +6,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { clearAuthSession } from '../src/api/authStorage.js'
 import { useOnboardingStore } from '../src/stores/onboarding.js'
 
-test('store submits the signup request and saves voice settings with the development adapter', async () => {
+test('store persists the signup auth session without a follow-up voice settings request', async () => {
   setActivePinia(createPinia())
   const store = useOnboardingStore()
 
@@ -49,7 +49,7 @@ test('store submits the signup request and saves voice settings with the develop
   assert.equal(result.ok, true)
   assert.equal(store.status, 'success')
   assert.equal(store.authResult.userId, 'mock-user-001')
-  assert.equal(store.voiceResult.pitchMultiplier, 0.97)
+  assert.equal(store.voiceResult, null)
   assert.equal(store.submitError, null)
 })
 

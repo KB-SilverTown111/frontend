@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { normalizeApiError } from '../src/api/errors.js'
+import { authApi } from '../src/api/auth.js'
 import { mockAuthApi } from '../src/api/mockAuth.js'
+import { selectOnboardingApi } from '../src/api/onboarding.js'
 
 test('API errors preserve the shared error contract without exposing raw transport data', () => {
   const normalized = normalizeApiError({
@@ -37,20 +39,21 @@ test('unknown transport failures become a concise user-facing error', () => {
   })
 })
 
-test('mock signup and voice settings use the documented response shapes', async () => {
-  const auth = await mockAuthApi.signup({ loginId: 'silveruser' })
-  const voice = await mockAuthApi.saveVoiceSettings(
-    {
-      ttsVoice: 'ko-KR-JiMinNeural',
-      speechRateMultiplier: 1.05,
-      volumeMultiplier: 1,
-    },
-    auth.accessToken,
+test('onboarding selects the real auth API whenever a base URL is configured unless mock mode is explicit', () => {
+  assert.equal(selectOnboardingApi({ VITE_API_BASE_URL: 'https://api.example.test' }), authApi)
+  assert.equal(
+    selectOnboardingApi({
+      VITE_API_BASE_URL: 'https://api.example.test',
+      VITE_USE_MOCK_API: 'true',
+    }),
+    mockAuthApi,
   )
+})
+
+test('mock signup uses the documented auth response shape', async () => {
+  const auth = await mockAuthApi.signup({ loginId: 'silveruser' })
 
   assert.deepEqual(Object.keys(auth), ['accessToken', 'refreshToken', 'expiresAt', 'userId'])
-  assert.equal(voice.pitchMultiplier, 0.97)
-  assert.equal(voice.ttsVoice, 'ko-KR-JiMinNeural')
 })
 
 test('mock login uses the documented credential request and auth response shape', async () => {
