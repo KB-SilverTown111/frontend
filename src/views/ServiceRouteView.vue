@@ -19,6 +19,7 @@ import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
 import { useVoiceStore } from '@/stores/voice.js'
+import TransferFlowPanel from '@/components/patterns/TransferFlowPanel.vue'
 import VoiceConversationPanel from '@/components/patterns/VoiceConversationPanel.vue'
 
 const route = useRoute()
@@ -35,6 +36,7 @@ const loading = ref(true)
 const actionBusy = ref(false)
 const actionError = ref('')
 const riskPurpose = ref('')
+const recipientSearch = ref('')
 let loadSequence = 0
 
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
@@ -56,6 +58,15 @@ const showVoiceControl = computed(() =>
  * 나머지 음성 화면은 취소·다시 말하기 같은 이동 경로가 화면 버튼에만 있으므로 유지한다.
  */
 const hideScreenActions = computed(() => service.value === 'transfer' && screenId.value === '2-02')
+
+/** 서버 데이터로 본문을 그리는 송금 화면. 프로토타입 문구 대신 실제 값을 보여준다. */
+const TRANSFER_FLOW_SCREENS = ['2-05', '2-07', '2-08', '2-14', '2-17', '2-18', '2-23']
+const showTransferFlow = computed(
+  () => service.value === 'transfer' && TRANSFER_FLOW_SCREENS.includes(screenId.value),
+)
+const showRecipientSearch = computed(
+  () => service.value === 'transfer' && ['2-05', '2-16'].includes(screenId.value),
+)
 
 const liveKind = computed(() => {
   if (service.value === 'living') {
@@ -218,6 +229,13 @@ async function loadContext(currentService, currentScreenId) {
     transferStore.sessionId = session?.sessionId || transferStore.sessionId
     await voiceStore.issueSpeechToken().catch(() => {})
   }
+
+  if (currentService === 'transfer' && ['2-08', '2-18'].includes(currentScreenId)) {
+    await serviceData.loadAccounts({ active: true }).catch(() => {})
+    if (!transferStore.fromAccount && serviceData.accounts.length) {
+      transferStore.selectAccount(serviceData.accounts[0])
+    }
+  }
 }
 
 async function loadScreen() {
@@ -278,16 +296,34 @@ async function uploadBill(source) {
   }
 }
 
+/** 음성으로 들은 이름을 검색어로 쓰고, 없으면 직접 입력한 이름을 쓴다. */
+function recipientKeyword() {
+  const spoken = voiceStore.transcript.split(/에게|한테|으로|에/)[0].trim()
+  return spoken || recipientSearch.value.trim()
+}
+
 async function loadRecipients() {
+  const keyword = recipientKeyword()
+  if (!keyword) {
+    actionError.value = '받는 분 이름을 알려주세요.'
+    return
+  }
+
   actionBusy.value = true
   actionError.value = ''
   try {
-    const contacts = await getContactCandidates()
-    const keyword = voiceStore.transcript.split(/에게|에|으로/)[0].trim() || '김영희'
-    await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
-    await go(primaryRoute.value)
+    // 연락처는 이번 요청의 후보 매칭에만 쓰고 저장하지 않는다.
+    const contacts = await getContactCandidates().catch(() => [])
+    const found = await transferStore.findRecipients({
+      keyword,
+      contacts: contacts.slice(0, 200),
+    })
+    if (!found.length) {
+      await go({ name: 'transfer-screen', params: { screenId: '2-16' } })
+      return
+    }
   } catch (error) {
-    actionError.value = error?.message || '연락처를 불러오지 못했어요. 직접 검색해 주세요.'
+    actionError.value = error?.message || '받는 분을 찾지 못했어요. 다시 시도해 주세요.'
   } finally {
     actionBusy.value = false
   }
@@ -361,12 +397,39 @@ async function handlePrimary() {
       .catch((error) => (actionError.value = error.message))
     return
   }
-  if (service.value === 'transfer' && screenId.value === '2-05') return loadRecipients()
+  if (service.value === 'transfer' && ['2-05', '2-17'].includes(screenId.value)) {
+    if (!transferStore.candidates.length) return loadRecipients()
+    if (!transferStore.selectedRecipient) {
+      actionError.value = '받는 분을 골라주세요.'
+      return
+    }
+    return go({ name: 'transfer-screen', params: { screenId: '2-18' } })
+  }
+  if (service.value === 'transfer' && screenId.value === '2-18') {
+    if (!transferStore.fromAccount) {
+      actionError.value = '돈이 나갈 계좌를 골라주세요.'
+      return
+    }
+    return go({ name: 'transfer-screen', params: { screenId: '2-07' } })
+  }
   if (service.value === 'transfer' && screenId.value === '2-07') {
-    await transferStore
-      .validateAmount({ recognizedAmount: 50000, amountCandidates: [50000] })
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
+    if (!transferStore.draftAmount) {
+      actionError.value = '보내실 금액을 적어주세요.'
+      return
+    }
+    try {
+      const validated = await transferStore.validateAmount()
+      // 재확인이 필요하면 초안을 만들지 않고 같은 화면에 머문다.
+      if (validated?.amountReconfirmRequired) return
+      if (!transferStore.readyToPrepare) {
+        actionError.value = '받는 분과 계좌를 먼저 정해주세요.'
+        return
+      }
+      await transferStore.prepare()
+      await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+    } catch (error) {
+      actionError.value = error.message
+    }
     return
   }
   if (service.value === 'transfer' && screenId.value === '2-08' && transferStore.transferId) {
@@ -374,10 +437,14 @@ async function handlePrimary() {
       const risk = await transferStore.assessRisk()
       if (risk?.additionalCheckRequired) {
         await go({ name: 'transfer-screen', params: { screenId: '2-09' } })
-      } else {
-        await transferStore.confirm({ approved: true })
-        await go(primaryRoute.value)
+        return
       }
+      const confirmed = await transferStore.confirm({ approved: true })
+      if (!confirmed?.executable) {
+        actionError.value = '지금은 송금을 진행할 수 없어요.'
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-22' } })
     } catch (error) {
       actionError.value = error.message
     }
@@ -398,18 +465,21 @@ async function handlePrimary() {
     }
     return
   }
-  if (service.value === 'transfer' && screenId.value === '2-11' && transferStore.transferId) {
-    await transferStore
-      .requestGuardianVerification()
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
-    return
-  }
   if (service.value === 'transfer' && screenId.value === '2-22' && transferStore.transferId) {
-    await transferStore
-      .execute()
-      .then(() => go({ name: 'transfer-screen', params: { screenId: '2-14' } }))
-      .catch((error) => (actionError.value = error.message))
+    if (!transferStore.executable) {
+      actionError.value = '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.'
+      return
+    }
+    try {
+      const executed = await transferStore.execute()
+      await go({
+        name: 'transfer-screen',
+        params: { screenId: executed?.status === 'SUCCESS' ? '2-14' : '2-23' },
+      })
+    } catch (error) {
+      actionError.value = error.message
+      await go({ name: 'transfer-screen', params: { screenId: '2-23' } })
+    }
     return
   }
   if (service.value === 'living' && screenId.value === '4-10') {
@@ -539,7 +609,7 @@ onMounted(() => {
         </div>
 
         <section
-          v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)"
+          v-if="screen?.contentHtml && !showVoiceControl && !showTransferFlow"
           class="service-route-screen-content prototype-screen-content"
           :data-variant="screen.variant"
         >
@@ -578,6 +648,24 @@ onMounted(() => {
             type="text"
           />
         </label>
+
+        <label
+          v-if="showRecipientSearch"
+          class="service-route-input-field"
+        >
+          <span>받는 분 이름</span>
+          <input
+            v-model="recipientSearch"
+            maxlength="30"
+            placeholder="예: 김영희"
+            type="text"
+          />
+        </label>
+
+        <TransferFlowPanel
+          v-if="showTransferFlow"
+          :screen-id="screenId"
+        />
 
         <VoiceConversationPanel
           v-if="showVoiceControl"
@@ -634,7 +722,7 @@ onMounted(() => {
         </Card>
       </main>
 
-      <footer v-if="screen && !showVoiceControl && (screen.primaryLabel || screen.secondaryLabel)">
+      <footer v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)">
         <Button
           v-if="screen.primaryLabel"
           class="service-route-primary"
