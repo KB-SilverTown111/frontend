@@ -49,13 +49,25 @@ test('transfer home uses a light surface without onboarding-only controls', () =
   assert.match(styleSource, /\.transfer-device \.app-header[\s\S]*background: var\(--card\)/)
 })
 
-test('transfer home includes the three service navigation labels', () => {
-  for (const label of ['홈', '고지서', '생활금융']) {
+test('transfer home includes the four service navigation labels', () => {
+  for (const label of ['홈', '고지서', '생활금융', '마이페이지']) {
     assert.match(viewSource, new RegExp(label))
   }
 
-  assert.match(viewSource, /class="app-bottom-nav three-items transfer-bottom-nav"/)
+  assert.match(viewSource, /class="app-bottom-nav four-items transfer-bottom-nav"/)
   assert.match(viewSource, /aria-current="page"/)
+})
+
+test('transfer home cards use a thicker visible border', () => {
+  assert.match(
+    styleSource,
+    /\.transfer-balance-card\s*\{[\s\S]*?border:\s*2px solid var\(--border\);/,
+  )
+  assert.match(styleSource, /\.transfer-choice\s*\{[\s\S]*?border:\s*2px solid var\(--border\);/)
+})
+
+test('service route back control has the same bordered treatment as onboarding', () => {
+  assert.match(styleSource, /\.service-route-back\s*\{[\s\S]*?border:\s*1px solid var\(--border\);/)
 })
 
 test('service navigation routes use production service screens', () => {

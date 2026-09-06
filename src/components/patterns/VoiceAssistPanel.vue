@@ -36,7 +36,7 @@ const status = computed(() =>
       >
         궁금한 내용을 말씀해 주세요
       </h3>
-      <p class="mt-2 text-[15px] leading-relaxed text-[#315a49]">
+      <p class="mt-2 text-[length:var(--font-size-body)] leading-relaxed text-[#315a49]">
         {{ status }}
       </p>
       <div
@@ -51,7 +51,7 @@ const status = computed(() =>
           :style="{ height: `${height}px` }"
         />
       </div>
-      <p class="mt-4 text-[13px] font-semibold text-[#315a49]">
+      <p class="mt-4 text-base font-semibold text-[#315a49]">
         버튼을 누르기 전에는 음성을 듣지 않아요.
       </p>
     </div>

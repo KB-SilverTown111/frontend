@@ -3,31 +3,73 @@ import { Capacitor } from '@capacitor/core'
 import { Contacts } from '@capacitor-community/contacts'
 import { Geolocation } from '@capacitor/geolocation'
 
-export async function takeBillPhoto(source = 'camera') {
-  return Camera.getPhoto({
+function isPermissionGranted(value) {
+  return value === 'granted' || value === 'limited'
+}
+
+async function ensurePhotoPermission(source, { camera, capacitor }) {
+  if (!capacitor.isNativePlatform()) return
+
+  const permission = source === 'gallery' ? 'photos' : 'camera'
+  const current = await camera.checkPermissions()
+  if (isPermissionGranted(current?.[permission])) return
+
+  const requested = await camera.requestPermissions({ permissions: [permission] })
+  if (!isPermissionGranted(requested?.[permission])) {
+    throw new Error(
+      source === 'gallery' ? '사진 보관함 권한이 필요해요.' : '카메라 권한이 필요해요.',
+    )
+  }
+}
+
+export async function takeBillPhoto(source = 'camera', dependencies = {}) {
+  const normalizedSource = source === 'gallery' ? 'gallery' : 'camera'
+  const camera = dependencies.camera ?? Camera
+  const capacitor = dependencies.capacitor ?? Capacitor
+  await ensurePhotoPermission(normalizedSource, { camera, capacitor })
+
+  if (capacitor.isNativePlatform()) {
+    if (normalizedSource === 'camera' && typeof camera.takePhoto === 'function') {
+      return camera.takePhoto({ quality: 90 })
+    }
+
+    if (normalizedSource === 'gallery' && typeof camera.chooseFromGallery === 'function') {
+      const { results = [] } = await camera.chooseFromGallery({
+        quality: 90,
+        allowMultipleSelection: false,
+      })
+      if (results[0]) return results[0]
+      throw new Error('사진을 고르지 않았어요.')
+    }
+  }
+
+  return camera.getPhoto({
     quality: 90,
     resultType: CameraResultType.Uri,
-    source: source === 'gallery' ? CameraSource.Photos : CameraSource.Camera,
+    source: normalizedSource === 'gallery' ? CameraSource.Photos : CameraSource.Camera,
     allowEditing: false,
     webUseInput: true,
   })
 }
 
 export async function photoToBlob(photo) {
-  if (photo?.webPath) {
-    const response = await fetch(photo.webPath)
-    return response.blob()
+  const paths = [photo?.webPath, photo?.path, photo?.uri].filter(Boolean)
+  for (const path of paths) {
+    try {
+      const fetchPath = /^file:|^content:/i.test(path) ? Capacitor.convertFileSrc(path) : path
+      const response = await fetch(fetchPath)
+      if (response.ok) return response.blob()
+    } catch {
+      // Try the next URI representation before falling back to an inline image.
+    }
   }
 
-  if (photo?.path) {
-    const response = await fetch(photo.path)
-    return response.blob()
-  }
-
-  if (photo?.base64String) {
-    const binary = atob(photo.base64String)
+  const base64 = photo?.base64String || photo?.thumbnail
+  if (base64) {
+    const binary = atob(base64)
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
-    return new Blob([bytes], { type: `image/${photo.format || 'jpeg'}` })
+    const format = photo?.metadata?.format || photo?.format || 'jpeg'
+    return new Blob([bytes], { type: `image/${format}` })
   }
 
   return null

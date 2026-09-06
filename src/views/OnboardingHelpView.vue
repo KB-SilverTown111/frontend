@@ -60,7 +60,7 @@ function requestHelp(mode) {
         <p class="help-caption">음성이 어려우면 글자로도 질문할 수 있어요.</p>
         <p
           v-if="helpStatus"
-          class="guide-card action-notice"
+          class="action-notice"
           role="status"
         >
           {{ helpStatus }}

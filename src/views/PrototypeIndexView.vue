@@ -62,7 +62,9 @@ async function toggleScreens(flowKey) {
         <h1 class="mt-6 text-4xl font-bold leading-tight tracking-[-0.04em] sm:text-5xl">
           귀편한 금융 화면
         </h1>
-        <p class="mt-4 max-w-2xl text-lg leading-relaxed text-[#d9e5e8]">
+        <p
+          class="mt-4 max-w-2xl text-[length:var(--font-size-body)] leading-relaxed text-[#d9e5e8]"
+        >
           흐름별 첫 화면으로 바로 이동하거나, 전체 화면 목록을 펼쳐 원하는 장면을 확인할 수 있어요.
         </p>
       </header>
@@ -116,7 +118,6 @@ async function toggleScreens(flowKey) {
                   params: { flow: flow.key, screenId: screen.id },
                 }"
               >
-                <span class="block text-sm text-muted-foreground">{{ screen.number }}</span>
                 <span>{{ screen.title }}</span>
               </RouterLink>
             </div>

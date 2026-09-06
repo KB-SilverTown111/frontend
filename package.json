@@ -18,7 +18,11 @@
     "test:transfer": "node --test scripts/transfer-home.test.mjs",
     "test:service-routes": "node --test scripts/service-routes.test.mjs",
     "test:service-api": "node --test scripts/service-api.test.mjs",
-    "test:service-stores": "node --test scripts/service-stores.test.mjs"
+    "test:service-stores": "node --test scripts/service-stores.test.mjs",
+    "test:camera": "node --test scripts/camera.test.mjs",
+    "test:design-system": "node --test scripts/design-system.test.mjs",
+    "test:font-scale": "node --test scripts/font-scale.test.mjs",
+    "test:my-page": "node --test scripts/my-page.test.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,vue}": [

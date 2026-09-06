@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { stripProductionSelectionIndicators } from '@/prototype/stripGuidanceCards.js'
 import {
   getProductionActionRoutes,
   getProductionHomeRoute,
@@ -38,6 +39,10 @@ let loadSequence = 0
 
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
 const homeRoute = computed(() => getProductionHomeRoute(service.value))
+const isMyPageDetail = computed(
+  () => service.value === 'living' && ['4-14', '4-15', '4-16'].includes(screenId.value),
+)
+const backRoute = computed(() => (isMyPageDetail.value ? { name: 'my-page' } : homeRoute.value))
 const primaryRoute = computed(() => actionRoutes.value.primary)
 const secondaryRoute = computed(() => actionRoutes.value.secondary)
 const showVoiceControl = computed(
@@ -477,9 +482,9 @@ onMounted(() => {
     <article class="mobile-app-shell service-route-device">
       <header class="app-header">
         <RouterLink
-          aria-label="서비스 홈으로"
+          :aria-label="isMyPageDetail ? '마이페이지로' : '서비스 홈으로'"
           class="app-header-button service-route-back"
-          :to="homeRoute"
+          :to="backRoute"
         >
           ‹
         </RouterLink>
@@ -502,10 +507,7 @@ onMounted(() => {
 
       <main class="app-main service-route-main">
         <section class="screen-heading service-route-heading">
-          <span class="service-route-kicker">
-            {{ screen?.serviceLabel || '서비스' }} · {{ screenId }}
-          </span>
-          <h1>{{ screen?.title || screenId }}</h1>
+          <h1>{{ screen?.title || '서비스 화면' }}</h1>
           <p>{{ screen?.description || '화면을 불러오는 중입니다.' }}</p>
         </section>
 
@@ -526,7 +528,7 @@ onMounted(() => {
           <!-- eslint-disable vue/no-v-html -->
           <div
             class="content"
-            v-html="screen.contentHtml"
+            v-html="stripProductionSelectionIndicators(screen.contentHtml)"
           />
           <!-- eslint-enable vue/no-v-html -->
           <p
@@ -645,11 +647,12 @@ onMounted(() => {
 
       <nav
         aria-label="주요 메뉴"
-        class="app-bottom-nav three-items service-route-bottom-nav"
+        class="app-bottom-nav four-items service-route-bottom-nav"
       >
         <RouterLink :to="{ name: 'transfer-home' }">홈</RouterLink>
         <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
         <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
+        <RouterLink :to="{ name: 'my-page' }">마이페이지</RouterLink>
       </nav>
     </article>
   </div>

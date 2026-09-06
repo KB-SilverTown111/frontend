@@ -22,6 +22,10 @@ const routeViewSource = readFileSync(
   new URL('../src/views/ServiceRouteView.vue', import.meta.url),
   'utf8',
 )
+const serviceStyleSource = readFileSync(
+  new URL('../src/styles/transfer.css', import.meta.url),
+  'utf8',
+)
 
 const expectedScreenCounts = {
   transfer: 30,
@@ -98,7 +102,87 @@ test('home actions point to production detail routes', () => {
 
 test('production route screen is not implemented with prototype views', () => {
   assert.doesNotMatch(routeViewSource, /PrototypeScreenView|prototype-stage|ScreenContent/)
-  assert.match(routeViewSource, /v-html="screen\.contentHtml"/)
+  assert.match(
+    routeViewSource,
+    /v-html="stripProductionSelectionIndicators\(screen\.contentHtml\)"/,
+  )
   assert.match(routeViewSource, /service-route-screen-content/)
   assert.match(routeViewSource, /getProductionActionRoutes/)
+})
+
+test('production bill route captures an image and binds it to a BILL_PAYMENT session for OCR', () => {
+  assert.match(routeViewSource, /takeBillPhoto\(source\)/)
+  assert.match(routeViewSource, /photoToBlob\(photo\)/)
+  assert.match(routeViewSource, /startSession\('BILL_PAYMENT'\)/)
+  assert.match(routeViewSource, /billStore\.upload\(\{\s*image,\s*voiceSessionId,\s*\}\)/)
+})
+
+test('production transfer route requires candidate selection and prepares only supported transfer data', () => {
+  assert.match(routeViewSource, /transferStore\.selectRecipient/)
+  assert.match(routeViewSource, /transferStore\.selectAccount/)
+  assert.match(routeViewSource, /transferStore\.prepare\(\{[\s\S]*fromAccountId:[\s\S]*recipientId:[\s\S]*amount:/)
+  assert.doesNotMatch(routeViewSource, /guardian-verifications|requestGuardianVerification/)
+})
+
+test('production screens hide technical screen identifiers from users', () => {
+  assert.doesNotMatch(routeViewSource, /service-route-kicker/)
+  assert.doesNotMatch(routeViewSource, /\{\{ screenId \}\}/)
+  assert.match(routeViewSource, /screen\?\.title \|\| '서비스 화면'/)
+})
+
+test('production choice groups stack one item per row for senior readability', () => {
+  const singleColumnBlock = serviceStyleSource.match(
+    /\.service-route-screen-content \.choices,\s*\.transfer-device \.transfer-choice-grid,\s*\.service-home-device \.service-choice-grid\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(singleColumnBlock, 'production choice groups should have a dedicated layout rule')
+  assert.match(singleColumnBlock, /display:\s*grid;/)
+  assert.match(singleColumnBlock, /grid-template-columns:\s*minmax\(0,\s*1fr\);/)
+
+  const choiceBlock = serviceStyleSource.match(
+    /\.transfer-device \.transfer-choice,\s*\.service-home-device \.service-choice,\s*\.service-route-screen-content \.choice\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(choiceBlock, 'production choice cards should have a shared touch target rule')
+  assert.match(choiceBlock, /min-height:\s*76px;/)
+  assert.match(choiceBlock, /padding:\s*18px;/)
+})
+
+test('production buttons use senior-readable size and weight', () => {
+  const buttonBlock = serviceStyleSource.match(
+    /\.transfer-device button,\s*\.service-home-device button,\s*\.service-route-device button\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(buttonBlock, 'production buttons should have a dedicated readability rule')
+  assert.match(buttonBlock, /font-size:\s*var\(--font-size-action\);/)
+  assert.match(buttonBlock, /font-weight:\s*800;/)
+})
+
+test('production headings and amount emphasis keep the approved senior scale', () => {
+  const headingBlock = serviceStyleSource.match(
+    /\.transfer-heading h1,\s*\.service-home-heading h1,\s*\.service-route-heading h1\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(headingBlock, 'production headings should have a shared type scale rule')
+  assert.match(headingBlock, /font-size:\s*var\(--font-size-title\);/)
+  assert.match(
+    serviceStyleSource,
+    /\.service-route-screen-content \.amount strong\s*\{[\s\S]*?font-size:\s*var\(--font-size-display\);/,
+  )
+})
+
+test('production supporting text stays readable beside the large action labels', () => {
+  assert.match(serviceStyleSource, /\.transfer-balance-content h2\s*\{[\s\S]*?font-size:\s*22px;/)
+  assert.match(
+    serviceStyleSource,
+    /\.transfer-balance-content p\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\);/,
+  )
+  assert.match(
+    serviceStyleSource,
+    /\.service-route-input-field\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\);/,
+  )
+  assert.match(
+    serviceStyleSource,
+    /\.service-route-error,[\s\S]*?\.service-home-data-error\s*\{[\s\S]*?font-size:\s*16px;/,
+  )
 })

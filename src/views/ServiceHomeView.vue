@@ -18,7 +18,6 @@ const serviceScreens = {
       [
         {
           label: '전기요금 · 48,200원',
-          selected: true,
           to: { name: 'bills-screen', params: { screenId: '3-04' } },
         },
         {
@@ -37,7 +36,6 @@ const serviceScreens = {
       [
         {
           label: '내 계좌',
-          selected: true,
           to: { name: 'living-screen', params: { screenId: '4-02' } },
         },
         {
@@ -48,12 +46,7 @@ const serviceScreens = {
       [
         {
           label: '이동점포 정보',
-          selected: true,
           to: { name: 'living-screen', params: { screenId: '4-10' } },
-        },
-        {
-          label: '가입 정보',
-          to: { name: 'living-screen', params: { screenId: '4-14' } },
         },
       ],
     ],
@@ -70,7 +63,6 @@ const visibleGroups = computed(() => {
   return [
     serviceData.bills.slice(0, 4).map((bill) => ({
       label: `${bill.payee || '고지서'} · ${formatCurrency(bill.amount)}`,
-      selected: bill.status !== 'PAID',
       to: {
         name: 'bills-screen',
         params: { screenId: '3-04' },
@@ -152,10 +144,8 @@ function startVoiceAssist() {
                   :key="choice.label"
                   :to="choice.to"
                   class="service-choice"
-                  :class="{ selected: choice.selected }"
                 >
                   <span>{{ choice.label }}</span>
-                  <b v-if="choice.selected">✓</b>
                 </RouterLink>
               </div>
             </CardContent>
@@ -191,7 +181,7 @@ function startVoiceAssist() {
 
       <nav
         aria-label="주요 메뉴"
-        class="app-bottom-nav three-items service-bottom-nav"
+        class="app-bottom-nav four-items service-bottom-nav"
       >
         <RouterLink
           :aria-current="route.name === 'transfer-home' ? 'page' : undefined"
@@ -210,6 +200,12 @@ function startVoiceAssist() {
           :to="{ name: 'living-home' }"
         >
           생활금융
+        </RouterLink>
+        <RouterLink
+          :aria-current="route.name === 'my-page' ? 'page' : undefined"
+          :to="{ name: 'my-page' }"
+        >
+          마이페이지
         </RouterLink>
       </nav>
     </article>

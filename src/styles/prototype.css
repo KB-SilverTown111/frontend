@@ -68,7 +68,7 @@
 
 .prototype-screen-content h1 {
   margin: 0 0 8px;
-  font-size: 30px;
+  font-size: var(--font-size-title);
   line-height: 1.22;
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -77,7 +77,7 @@
 .prototype-screen-content .sub {
   margin: 0 0 18px;
   color: var(--muted-foreground);
-  font-size: 18px;
+  font-size: var(--font-size-body);
   line-height: 1.5;
   font-weight: 500;
 }
@@ -93,8 +93,8 @@
   display: flex;
   gap: 14px;
   align-items: flex-start;
-  padding: 18px;
-  border: 1px solid var(--border);
+  padding: 20px 18px;
+  border: 2px solid var(--border);
   border-radius: calc(var(--radius) + 4px);
   background: var(--card);
   box-shadow: 0 5px 14px rgb(23 63 82 / 6%);
@@ -156,19 +156,19 @@
 .prototype-screen-content .choice,
 .prototype-screen-content .meta,
 .prototype-screen-content .note {
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   background: var(--card);
 }
 
 .prototype-screen-content .field {
-  min-height: 60px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
   border-radius: var(--radius);
   color: var(--muted-foreground);
-  font-size: 18px;
+  font-size: var(--font-size-body);
   font-weight: 500;
 }
 
@@ -186,12 +186,13 @@
 }
 
 .prototype-screen-content .choices {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
 .prototype-screen-content .choice {
-  min-height: 66px;
+  min-height: 72px;
   flex: 1;
   display: flex;
   align-items: center;
@@ -199,7 +200,7 @@
   padding: 14px;
   border-radius: var(--radius);
   color: var(--foreground);
-  font-size: 18px;
+  font-size: var(--font-size-body);
   line-height: 1.32;
   font-weight: 600;
 }
@@ -218,7 +219,7 @@
 .prototype-screen-content .meta {
   display: flex;
   justify-content: space-between;
-  padding: 15px 16px;
+  padding: 18px 16px;
   border-radius: var(--radius);
   font-size: 17px;
   font-weight: 500;
@@ -242,7 +243,7 @@
 
 .prototype-screen-content .amount strong {
   color: var(--background);
-  font-size: 36px;
+  font-size: var(--font-size-display);
   font-weight: 800;
 }
 
@@ -566,8 +567,8 @@
 
 .prototype-screen-content .examples {
   margin-top: 16px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
+  padding: 18px;
+  border: 2px solid var(--border);
   border-radius: calc(var(--radius) + 2px);
   background: var(--card);
 }
@@ -630,7 +631,7 @@
 .prototype-state-card {
   width: min(100%, 390px);
   padding: 24px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: calc(var(--radius) + 6px);
   background: var(--card);
   box-shadow: 0 18px 50px rgb(23 63 82 / 14%);

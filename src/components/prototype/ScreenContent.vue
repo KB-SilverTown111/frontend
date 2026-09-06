@@ -1,4 +1,6 @@
 <script setup>
+import { stripGuidanceCards } from '@/prototype/stripGuidanceCards.js'
+
 defineProps({
   screen: { type: Object, required: true },
 })
@@ -15,7 +17,7 @@ defineProps({
     <!-- eslint-disable vue/no-v-html -->
     <div
       class="content"
-      v-html="screen.contentHtml"
+      v-html="stripGuidanceCards(screen.contentHtml)"
     />
     <!-- eslint-enable vue/no-v-html -->
     <p

@@ -9,6 +9,7 @@ import {
 } from '../src/features/onboarding/screens.js'
 import {
   getAdjacentStep,
+  getOnboardingDisplayProgress,
   getOnboardingStep,
   ONBOARDING_STEPS,
 } from '../src/features/onboarding/steps.js'
@@ -71,4 +72,13 @@ test('only data-entry steps participate in progress calculation', () => {
   assert.equal(getOnboardingStep('basic-info').progress, 3)
   assert.equal(getOnboardingStep('permissions').progress, 10)
   assert.equal(getOnboardingStep('complete').progress, 10)
+})
+
+test('display progress follows the seven primary onboarding stages', () => {
+  assert.deepEqual(getOnboardingDisplayProgress('consent-overview'), { current: 1, total: 7 })
+  assert.deepEqual(getOnboardingDisplayProgress('basic-info'), { current: 2, total: 7 })
+  assert.deepEqual(getOnboardingDisplayProgress('bank-select'), { current: 5, total: 7 })
+  assert.deepEqual(getOnboardingDisplayProgress('permissions'), { current: 7, total: 7 })
+  assert.equal(getOnboardingDisplayProgress('start'), null)
+  assert.equal(getOnboardingDisplayProgress('login'), null)
 })

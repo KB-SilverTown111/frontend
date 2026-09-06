@@ -42,7 +42,7 @@ export default [
     id: '1-04',
     number: '1-04',
     title: '기본 정보',
-    description: '이름과 성별 정보를 입력합니다.',
+    description: '아이디와 비밀번호 및 기본 정보를 입력합니다.',
     contentHtml:
       '<div class="field "><span>이름</span><b>›</b></div><div class="choices"><div class="choice active"><span>여성</span><i>✓</i></div><div class="choice "><span>남성</span><i></i></div></div>',
     primaryLabel: '다음',

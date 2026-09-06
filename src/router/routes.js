@@ -52,6 +52,16 @@ export const routes = [
     component: () => import('@/views/ServiceHomeView.vue'),
   },
   {
+    path: '/mypage',
+    name: 'my-page',
+    component: () => import('@/views/MyPageView.vue'),
+  },
+  {
+    path: '/mypage/font-size',
+    name: 'my-page-font-size',
+    component: () => import('@/views/MyPageFontSizeView.vue'),
+  },
+  {
     path: '/voice',
     name: 'voice-home',
     redirect: { name: 'voice-screen', params: { screenId: '5-01' } },
