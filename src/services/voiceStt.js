@@ -1,6 +1,8 @@
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
 import { Capacitor } from '@capacitor/core'
 
+import { isAudioCaptureSupported, startAudioCapture } from './audioCapture.js'
+
 /**
  * STT 입력 경로. 서버가 세션 생성 시 확정하며 세션 중에는 바뀌지 않는다.
  * 일반 금융·고지서는 CLIENT, 송금은 BACKEND_STREAM이다.
@@ -147,6 +149,23 @@ export async function captureSpeech(sttMode = STT_MODE.CLIENT) {
     throw createSttError('STT_NO_SPEECH', '말씀을 듣지 못했어요. 다시 말씀해 주세요.')
   }
   return result
+}
+
+/**
+ * 송금(BACKEND_STREAM) 오디오 캡처를 시작한다.
+ *
+ * 서버가 받는 형식([4바이트 시퀀스][PCM 16 kHz/16-bit/모노])으로 프레임을 만들어
+ * onFrame으로 넘긴다. 프레임을 서버로 실제 전송하는 WebSocket 계층은
+ * 핸드셰이크 인증 방식이 확정된 뒤에 붙인다.
+ *
+ * @param {{ onFrame: (frame: ArrayBuffer) => void }} options
+ * @returns {Promise<{ stop: () => Promise<void>, sampleRate: number }>}
+ */
+export async function startTransferAudioCapture({ onFrame }) {
+  if (!isAudioCaptureSupported()) {
+    throw createSttError('AUDIO_CAPTURE_UNSUPPORTED', '이 기기에서는 마이크를 사용할 수 없어요.')
+  }
+  return startAudioCapture({ onFrame })
 }
 
 export async function abortSpeechCapture() {
