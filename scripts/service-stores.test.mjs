@@ -45,19 +45,16 @@ test('transfer store keeps prepared transfer context and calls API actions', asy
     prepare: transfersApi.prepare,
     validateAmount: transfersApi.validateAmount,
     confirm: transfersApi.confirm,
+    authenticate: transfersApi.authenticate,
     execute: transfersApi.execute,
   }
-  let executeRequest = null
+  let executeOptions = null
   transfersApi.prepare = async (request) => ({ transferId: 't-1', status: 'DRAFT', ...request })
   transfersApi.validateAmount = async (request) => ({ ...request, confirmedAmount: 50000 })
-  transfersApi.confirm = async () => ({
-    transferId: 't-1',
-    status: 'CONFIRMED',
-    executable: true,
-    confirmationToken: 'one-time-token',
-  })
-  transfersApi.execute = async (transferId, request) => {
-    executeRequest = request
+  transfersApi.confirm = async () => ({ transferId: 't-1', status: 'CONFIRMED', executable: true })
+  transfersApi.authenticate = async () => ({ authenticated: true, expiresAt: '2026-09-07T00:00:00Z' })
+  transfersApi.execute = async (transferId, request, options) => {
+    executeOptions = options
     return { transactionId: 'x-1', transferId, status: 'SUCCESS', amount: 50000 }
   }
 
@@ -66,12 +63,14 @@ test('transfer store keeps prepared transfer context and calls API actions', asy
     await store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 })
     const validation = await store.validateAmount({ recognizedAmount: 50000, amountCandidates: [] })
     await store.confirm({ approved: true })
+    await store.authenticate({ pin: '123456' })
     const result = await store.execute()
 
     assert.equal(store.transferId, 't-1')
     assert.equal(validation.confirmedAmount, 50000)
     assert.equal(store.executable, true)
-    assert.equal(executeRequest.confirmationToken, 'one-time-token')
+    assert.equal(store.authenticated, true)
+    assert.ok(executeOptions.idempotencyKey)
     assert.equal(result.status, 'SUCCESS')
     assert.equal(store.result.transactionId, 'x-1')
   } finally {
@@ -79,11 +78,16 @@ test('transfer store keeps prepared transfer context and calls API actions', asy
   }
 })
 
-test('transfer store refuses to execute without a server confirmation token', async () => {
+test('transfer store refuses to execute before confirmation and PIN authentication', async () => {
   setup()
-  const originals = { prepare: transfersApi.prepare, execute: transfersApi.execute }
+  const originals = {
+    prepare: transfersApi.prepare,
+    confirm: transfersApi.confirm,
+    execute: transfersApi.execute,
+  }
   let executed = false
   transfersApi.prepare = async () => ({ transferId: 't-2', status: 'DRAFT' })
+  transfersApi.confirm = async () => ({ transferId: 't-2', status: 'CONFIRMED', executable: true })
   transfersApi.execute = async () => {
     executed = true
     return { status: 'SUCCESS' }
@@ -92,7 +96,14 @@ test('transfer store refuses to execute without a server confirmation token', as
   try {
     const store = useTransferStore()
     await store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 })
+
+    // 승인 전에는 실행하지 않는다.
     await assert.rejects(() => store.execute())
+
+    // 승인만 하고 PIN 인증을 건너뛰어도 실행하지 않는다.
+    await store.confirm({ approved: true })
+    await assert.rejects(() => store.execute())
+
     assert.equal(executed, false)
   } finally {
     Object.assign(transfersApi, originals)

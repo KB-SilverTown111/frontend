@@ -16,6 +16,7 @@ export const useTransferStore = defineStore('transfer', () => {
   const amount = ref(null)
   const prepared = ref(null)
   const confirmation = ref(null)
+  const authentication = ref(null)
   const validation = ref(null)
   const result = ref(null)
   const error = ref(null)
@@ -28,10 +29,10 @@ export const useTransferStore = defineStore('transfer', () => {
   let executionKey = ''
 
   const recipientName = computed(() => selectedRecipient.value?.displayName ?? '')
-  const confirmationToken = computed(() => confirmation.value?.confirmationToken ?? '')
-  const executable = computed(() =>
-    Boolean(confirmation.value?.executable && confirmationToken.value),
-  )
+  /** 서버가 승인한 거래만 실행 단계로 넘어간다. */
+  const executable = computed(() => Boolean(confirmation.value?.executable))
+  /** PIN 인증이 통과해야 실행할 수 있다. */
+  const authenticated = computed(() => Boolean(authentication.value?.authenticated))
   const amountReconfirmRequired = computed(() =>
     Boolean(validation.value?.amountReconfirmRequired ?? prepared.value?.amountReconfirmRequired),
   )
@@ -109,6 +110,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const response = await run(() => transfersApi.prepare(payload))
     prepared.value = response
     confirmation.value = null
+    authentication.value = null
     transferId.value = response?.transferId ?? ''
     amount.value = response?.amount ?? payload.amount ?? amount.value
     executionKey = createIdempotencyKey()
@@ -123,38 +125,45 @@ export const useTransferStore = defineStore('transfer', () => {
     return response
   }
 
-  /** 승인하면 서버가 일회용 confirmationToken을 발급한다. */
+  /** 승인하면 서버가 executable을 내려준다. 별도 토큰은 발급하지 않는다. */
   async function confirm(request = { approved: true }) {
     const response = await run(() => transfersApi.confirm(transferId.value, request))
     confirmation.value = response
+    authentication.value = null
     prepared.value = { ...prepared.value, ...response }
     return response
   }
 
+  /** 거래 승인 PIN 인증. PIN 값은 보관하지 않고 결과만 남긴다. */
   async function authenticate(request) {
-    return run(() => transfersApi.authenticate(transferId.value, request))
+    const response = await run(() => transfersApi.authenticate(transferId.value, request))
+    authentication.value = response
+    return response
   }
 
-  /** 서버가 발급한 토큰이 준비된 경우에만 실행한다. */
+  function localError(code, message) {
+    return normalizeApiError({ response: { data: { code, message } } })
+  }
+
+  /**
+   * 서버 승인과 PIN 인증이 모두 끝난 경우에만 실행한다.
+   * 배포 계약상 본문은 없고 Idempotency-Key 헤더만 보낸다.
+   */
   async function execute(request = {}, options = {}) {
-    const payload = {
-      confirmationToken: request.confirmationToken ?? confirmationToken.value,
-      authProof: request.authProof ?? 'mock-auth-ok',
+    if (!executable.value) {
+      error.value = localError(
+        'TRANSFER_NOT_CONFIRMED',
+        '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.',
+      )
+      throw error.value
     }
-    if (!payload.confirmationToken) {
-      error.value = normalizeApiError({
-        response: {
-          data: {
-            code: 'TRANSFER_NOT_CONFIRMED',
-            message: '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.',
-          },
-        },
-      })
+    if (!authenticated.value) {
+      error.value = localError('TRANSFER_NOT_AUTHENTICATED', '비밀번호 확인이 필요해요.')
       throw error.value
     }
 
     const response = await run(() =>
-      transfersApi.execute(transferId.value, payload, {
+      transfersApi.execute(transferId.value, request, {
         ...options,
         idempotencyKey: options.idempotencyKey ?? executionKey,
       }),
@@ -167,6 +176,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const response = await run(() => transfersApi.cancel(transferId.value))
     prepared.value = response
     confirmation.value = null
+    authentication.value = null
     return response
   }
 
@@ -188,6 +198,7 @@ export const useTransferStore = defineStore('transfer', () => {
     amount.value = null
     prepared.value = null
     confirmation.value = null
+    authentication.value = null
     validation.value = null
     result.value = null
     error.value = null
@@ -205,13 +216,14 @@ export const useTransferStore = defineStore('transfer', () => {
     amount,
     prepared,
     confirmation,
+    authentication,
     validation,
     result,
     error,
     busy,
     recipientName,
-    confirmationToken,
     executable,
+    authenticated,
     amountReconfirmRequired,
     readyToPrepare,
     startSession,

@@ -37,6 +37,8 @@ const actionBusy = ref(false)
 const actionError = ref('')
 const riskPurpose = ref('')
 const recipientSearch = ref('')
+/** 거래 승인 비밀번호. 인증 요청 직후 비우고 저장하지 않는다. */
+const transferPin = ref('')
 let loadSequence = 0
 
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
@@ -244,6 +246,7 @@ async function loadScreen() {
   screen.value = null
   actionError.value = ''
   riskPurpose.value = ''
+  transferPin.value = ''
 
   let nextScreen
   try {
@@ -444,7 +447,8 @@ async function handlePrimary() {
         actionError.value = '지금은 송금을 진행할 수 없어요.'
         return
       }
-      await go({ name: 'transfer-screen', params: { screenId: '2-22' } })
+      // 실행 전에 거래 승인 비밀번호를 확인한다.
+      await go({ name: 'transfer-screen', params: { screenId: '2-11' } })
     } catch (error) {
       actionError.value = error.message
     }
@@ -462,6 +466,27 @@ async function handlePrimary() {
       )
     } catch (error) {
       actionError.value = error.message
+    }
+    return
+  }
+  if (service.value === 'transfer' && screenId.value === '2-11' && transferStore.transferId) {
+    const pin = transferPin.value.trim()
+    if (!pin) {
+      actionError.value = '비밀번호를 입력해 주세요.'
+      return
+    }
+    try {
+      const authenticated = await transferStore.authenticate({ pin })
+      transferPin.value = ''
+      if (!authenticated?.authenticated) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-22' } })
+    } catch (error) {
+      transferPin.value = ''
+      actionError.value = error.message
+      await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
     }
     return
   }
@@ -659,6 +684,21 @@ onMounted(() => {
             maxlength="30"
             placeholder="예: 김영희"
             type="text"
+          />
+        </label>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-11'"
+          class="service-route-input-field"
+        >
+          <span>거래 승인 비밀번호</span>
+          <input
+            v-model="transferPin"
+            autocomplete="off"
+            inputmode="numeric"
+            maxlength="12"
+            placeholder="숫자로 입력"
+            type="password"
           />
         </label>
 
