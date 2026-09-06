@@ -8,12 +8,11 @@ defineProps({
   secondaryLabel: { type: String, default: '' },
   busy: Boolean,
   hideBack: Boolean,
-  showHelp: Boolean,
   bottomNav: { type: String, default: '' },
   errorMessage: { type: String, default: '' },
 })
 
-defineEmits(['back', 'help', 'home', 'bills', 'living', 'primary', 'secondary'])
+defineEmits(['back', 'home', 'bills', 'living', 'primary', 'secondary'])
 </script>
 
 <template>
@@ -36,18 +35,7 @@ defineEmits(['back', 'help', 'home', 'bills', 'living', 'primary', 'secondary'])
           aria-hidden="true"
         />
         <strong class="app-brand">귀편한 금융</strong>
-        <Button
-          v-if="showHelp"
-          aria-label="도움말"
-          class="app-header-button"
-          size="icon"
-          variant="secondary"
-          @click="$emit('help')"
-        >
-          ?
-        </Button>
         <span
-          v-else
           class="app-header-spacer"
           aria-hidden="true"
         />
@@ -117,13 +105,6 @@ defineEmits(['back', 'help', 'home', 'bills', 'living', 'primary', 'secondary'])
           @click="$emit('living')"
         >
           <span>○</span>생활금융
-        </button>
-        <button
-          v-else
-          type="button"
-          @click="$emit('help')"
-        >
-          <span>?</span>도움
         </button>
       </nav>
     </article>

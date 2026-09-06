@@ -30,3 +30,15 @@ test('required consent detail guidance explains that agreement is required', asy
   assert.doesNotMatch(source, /'mydata-consent': '동의하지 않아도 송금은 쓸 수 있어요\.'/)
   assert.doesNotMatch(source, /'ai-voice-consent': '동의하지 않으면 화면 단추로만 쓰게 돼요\.'/)
 })
+
+test('onboarding shell does not render question-mark help controls', async () => {
+  const shell = await readFile(
+    new URL('../src/components/onboarding/OnboardingShell.vue', import.meta.url),
+    'utf8',
+  )
+  const view = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(shell, /aria-label="도움말"/)
+  assert.doesNotMatch(shell, /<span>\?<\/span>도움/)
+  assert.doesNotMatch(view, /:show-help=/)
+})
