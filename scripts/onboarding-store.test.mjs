@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { createPinia, setActivePinia } from 'pinia'
 
+import { clearAuthSession } from '../src/api/authStorage.js'
 import { useOnboardingStore } from '../src/stores/onboarding.js'
 
 test('store submits the signup request and saves voice settings with the development adapter', async () => {
@@ -77,6 +78,27 @@ test('store logs in with the ID and password fields', async () => {
   assert.equal(result.ok, true)
   assert.equal(store.authResult.userId, 'mock-user-001')
   assert.equal(store.status, 'success')
+})
+
+test('store restores and clears the authenticated session across app instances', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const signedInStore = useOnboardingStore()
+  signedInStore.draft.loginId = 'silveruser'
+  signedInStore.draft.password = 'safe-pass-123'
+  await signedInStore.login()
+
+  setActivePinia(createPinia())
+  const restoredStore = useOnboardingStore()
+  await restoredStore.restoreAuthSession()
+  assert.equal(restoredStore.authResult.accessToken, 'mock-access-token')
+
+  await restoredStore.reset()
+  setActivePinia(createPinia())
+  const clearedStore = useOnboardingStore()
+  await clearedStore.restoreAuthSession()
+  assert.equal(clearedStore.authResult, null)
 })
 
 test('UI-only completion clears transient personal and financial data', () => {
