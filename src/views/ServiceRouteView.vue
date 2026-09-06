@@ -551,7 +551,8 @@ onMounted(() => {
           v-if="
             screen?.contentHtml &&
             !(service === 'transfer' && screenId === '2-08') &&
-            !hideScreenActions
+            !hideScreenActions &&
+            !showVoiceControl
           "
           class="service-route-screen-content screen-content"
           :data-variant="screen.variant"
