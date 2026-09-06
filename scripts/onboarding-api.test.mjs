@@ -42,7 +42,10 @@ test('unknown transport failures become a concise user-facing error', () => {
 test('onboarding selects the real auth API whenever a base URL is configured unless mock mode is explicit', () => {
   assert.equal(selectOnboardingApi({ VITE_API_BASE_URL: 'https://api.example.test' }), authApi)
   assert.equal(
-    selectOnboardingApi({ VITE_API_BASE_URL: 'https://api.example.test', VITE_USE_MOCK_API: 'true' }),
+    selectOnboardingApi({
+      VITE_API_BASE_URL: 'https://api.example.test',
+      VITE_USE_MOCK_API: 'true',
+    }),
     mockAuthApi,
   )
 })

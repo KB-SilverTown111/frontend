@@ -65,16 +65,4 @@ export const transfersApi = {
     const { data } = await apiClient.post('/transfers/validate-amount', request)
     return data
   },
-
-  async guardianVerification(transferId, request = {}, options = {}) {
-    const config = withIdempotencyKey(options, options.idempotencyKey ?? request.idempotencyKey)
-    const body = { ...request }
-    delete body.idempotencyKey
-    const { data } = await apiClient.post(
-      `/transfers/${transferId}/guardian-verifications`,
-      body,
-      config,
-    )
-    return data
-  },
 }

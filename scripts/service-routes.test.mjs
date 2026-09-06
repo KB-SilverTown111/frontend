@@ -115,13 +115,75 @@ test('production bill route captures an image and binds it to a BILL_PAYMENT ses
   assert.match(routeViewSource, /photoToBlob\(photo\)/)
   assert.match(routeViewSource, /startSession\('BILL_PAYMENT'\)/)
   assert.match(routeViewSource, /billStore\.upload\(\{\s*image,\s*voiceSessionId,\s*\}\)/)
+  assert.match(routeViewSource, /await billStore\.upload\([\s\S]*?screenId: '3-04'/)
 })
 
 test('production transfer route requires candidate selection and prepares only supported transfer data', () => {
+  assert.match(routeViewSource, /v-model="recipientKeyword"/)
+  assert.match(routeViewSource, /@input="clearRecipientCandidates"/)
+  assert.match(routeViewSource, /recipientKeyword\.value\.trim\(\)/)
+  assert.match(routeViewSource, /findRecipients\(\{\s*keyword,/)
   assert.match(routeViewSource, /transferStore\.selectRecipient/)
   assert.match(routeViewSource, /transferStore\.selectAccount/)
-  assert.match(routeViewSource, /transferStore\.prepare\(\{[\s\S]*fromAccountId:[\s\S]*recipientId:[\s\S]*amount:/)
+  assert.match(
+    routeViewSource,
+    /transferStore\.prepare\(\{[\s\S]*fromAccountId:[\s\S]*recipientId:[\s\S]*amount:/,
+  )
+  assert.match(
+    routeViewSource,
+    /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-18' \} \}\)/,
+  )
+  assert.match(
+    routeViewSource,
+    /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-08' \} \}\)/,
+  )
   assert.doesNotMatch(routeViewSource, /guardian-verifications|requestGuardianVerification/)
+})
+
+test('transfer confirmation renders the prepared recipient, amount, and masked account instead of prototype data', () => {
+  assert.match(routeViewSource, /transferSummaryRows/)
+  assert.match(routeViewSource, /recipient\.accountNumberMasked/)
+  assert.match(routeViewSource, /formatCurrency\(transferStore\.amount\)/)
+  assert.match(routeViewSource, /account\.accountNumberMasked/)
+  assert.match(
+    routeViewSource,
+    /screen\?\.contentHtml && !\(service === 'transfer' && screenId === '2-08'\)/,
+  )
+})
+
+test('transfer entry clears stale state and a direct final-confirmation URL is blocked without a transfer', () => {
+  assert.match(
+    routeViewSource,
+    /currentService === 'transfer' && currentScreenId === '2-02'[\s\S]*transferStore\.reset\(\)[\s\S]*recipientKeyword\.value = ''/,
+  )
+  assert.match(
+    routeViewSource,
+    /service\.value === 'transfer' && screenId\.value === '2-08' && !transferStore\.transferId/,
+  )
+  assert.match(routeViewSource, /송금 정보를 다시 확인해 주세요\./)
+  assert.match(
+    routeViewSource,
+    /service\.value === 'transfer' && screenId\.value === '2-09' && !transferStore\.transferId/,
+  )
+  assert.match(routeViewSource, /송금 정보를 다시 확인해 주세요\./)
+})
+
+test('active reminder queries use the supported SCHEDULED status', () => {
+  assert.match(serviceHomeSource, /loadReminders\(\{ status: 'SCHEDULED' \}\)/)
+  assert.match(routeViewSource, /loadReminders\(\{ status: 'SCHEDULED' \}\)/)
+})
+
+test('transfer risk clearance skips rescoring after a safe risk check', () => {
+  assert.match(routeViewSource, /if \(!transferStore\.riskCleared\)/)
+  assert.match(routeViewSource, /transferStore\.isRiskHeld\(risk\)[\s\S]*screenId: '2-10'/)
+  assert.match(routeViewSource, /warningText[\s\S]*risk\?\.warning/)
+  assert.match(routeViewSource, /confirmationCompleted/)
+  assert.match(routeViewSource, /authenticationCompleted/)
+  assert.match(routeViewSource, /추가 확인이 필요해 송금을 진행할 수 없어요\./)
+})
+
+test('bill home reads the backend monthly totalCount field before legacy fallbacks', () => {
+  assert.match(serviceHomeSource, /monthlySummary\.totalCount \?\? monthlySummary\.billCount/)
 })
 
 test('production screens hide technical screen identifiers from users', () => {

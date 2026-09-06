@@ -72,6 +72,14 @@ const visibleGroups = computed(() => {
   ]
 })
 const dataSummary = computed(() => {
+  if (service.value === 'bills' && serviceData.monthlySummary) {
+    const monthlySummary = serviceData.monthlySummary
+    const count = Number(
+      monthlySummary.totalCount ?? monthlySummary.billCount ?? monthlySummary.count,
+    )
+    const total = formatCurrency(monthlySummary.totalAmount ?? monthlySummary.amount)
+    return `${Number.isFinite(count) ? count : serviceData.bills.length}건, 이번 달 ${total}입니다.`
+  }
   if (service.value === 'bills' && serviceData.bills.length) {
     return `등록된 고지서 ${serviceData.bills.length}건을 불러왔어요.`
   }
@@ -87,8 +95,11 @@ function formatCurrency(value) {
 }
 
 onMounted(() => {
-  if (service.value === 'bills') serviceData.loadBills().catch(() => {})
-  if (service.value === 'living') serviceData.loadReminders({ status: 'PENDING' }).catch(() => {})
+  if (service.value === 'bills') {
+    serviceData.loadBills().catch(() => {})
+    serviceData.loadMonthlySummary().catch(() => {})
+  }
+  if (service.value === 'living') serviceData.loadReminders({ status: 'SCHEDULED' }).catch(() => {})
 })
 
 function startVoiceAssist() {
@@ -158,7 +169,10 @@ function startVoiceAssist() {
             {{ dataSummary }}
           </p>
           <p
-            v-if="serviceData.errors[service === 'bills' ? 'bills' : 'reminders']"
+            v-if="
+              serviceData.errors[service === 'bills' ? 'bills' : 'reminders'] ||
+              (service === 'bills' && serviceData.errors.monthlySummary)
+            "
             class="service-home-data-error"
             role="status"
           >
