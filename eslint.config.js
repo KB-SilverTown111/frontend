@@ -25,4 +25,13 @@ export default [
       'vue/singleline-html-element-content-newline': 'off',
     },
   },
+  {
+    // 오디오 스레드에서 실행되는 파일이라 브라우저 전역이 아닌 AudioWorkletGlobalScope를 쓴다.
+    files: ['src/services/pcmWorkletProcessor.js'],
+    languageOptions: {
+      globals: {
+        ...globals.audioWorklet,
+      },
+    },
+  },
 ]

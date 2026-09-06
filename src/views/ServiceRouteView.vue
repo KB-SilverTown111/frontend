@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
 import { useVoiceStore } from '@/stores/voice.js'
+import VoiceConversationPanel from '@/components/patterns/VoiceConversationPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,6 +43,21 @@ const isMyPageDetail = computed(
 const backRoute = computed(() => (isMyPageDetail.value ? { name: 'my-page' } : homeRoute.value))
 const primaryRoute = computed(() => actionRoutes.value.primary)
 const secondaryRoute = computed(() => actionRoutes.value.secondary)
+const VOICE_CONVERSATION_SCREENS = {
+  transfer: ['2-02', '2-03', '2-04', '2-15', '2-24', '2-25', '2-26'],
+  voice: ['5-08'],
+}
+const VOICE_SERVICES = Object.keys(VOICE_CONVERSATION_SCREENS)
+
+const showVoiceControl = computed(() =>
+  (VOICE_CONVERSATION_SCREENS[service.value] ?? []).includes(screenId.value),
+)
+
+/**
+ * 2-02만 패널의 키보드 입력과 화면 버튼 라벨이 겹친다.
+ * 나머지 음성 화면은 취소·다시 말하기 같은 이동 경로가 화면 버튼에만 있으므로 유지한다.
+ */
+const hideScreenActions = computed(() => service.value === 'transfer' && screenId.value === '2-02')
 const liveKind = computed(() => {
   if (service.value === 'living') {
     if (['4-02', '4-03', '4-04'].includes(screenId.value)) return 'accounts'
@@ -429,6 +445,16 @@ function openVoice() {
   router.push({ name: 'voice-screen', params: { screenId: '5-08' } })
 }
 
+/** 서비스를 완전히 벗어날 때만 세션을 닫는다. 같은 서비스 안의 화면 이동은 유지한다. */
+onBeforeRouteLeave((to) => {
+  if (!VOICE_SERVICES.includes(service.value)) return
+  if (to.meta?.service === service.value || to.name === `${service.value}-home`) return
+
+  voiceStore.silence()
+  if (voiceStore.sessionId) voiceStore.closeSession().catch(() => {})
+  voiceStore.transcript = ''
+})
+
 watch([service, screenId], loadScreen, { immediate: true })
 onMounted(() => {
   if (service.value === 'bills' && screenId.value === '3-02A') billStore.reset()
@@ -478,7 +504,11 @@ onMounted(() => {
         </div>
 
         <section
-          v-if="screen?.contentHtml && !(service === 'transfer' && screenId === '2-08')"
+          v-if="
+            screen?.contentHtml &&
+            !(service === 'transfer' && screenId === '2-08') &&
+            !hideScreenActions
+          "
           class="service-route-screen-content prototype-screen-content"
           :data-variant="screen.variant"
         >
@@ -616,6 +646,12 @@ onMounted(() => {
           </div>
         </section>
 
+        <VoiceConversationPanel
+          v-if="showVoiceControl"
+          :entry-point="service === 'transfer' ? 'TRANSFER' : 'GENERAL_FINANCE'"
+          :screen-id="screenId"
+        />
+
         <section
           v-if="liveKind"
           class="service-route-live-panel"
@@ -665,10 +701,7 @@ onMounted(() => {
         </Card>
       </main>
 
-      <footer
-        v-if="screen && (screen.primaryLabel || screen.secondaryLabel)"
-        class="app-actions service-route-actions"
-      >
+      <footer v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)">
         <Button
           v-if="screen.primaryLabel"
           class="service-route-primary"
