@@ -42,3 +42,26 @@ test('onboarding shell does not render question-mark help controls', async () =>
   assert.doesNotMatch(shell, /<span>\?<\/span>도움/)
   assert.doesNotMatch(view, /:show-help=/)
 })
+
+test('going back clears a stale submit error before changing onboarding steps', async () => {
+  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const start = source.indexOf('function goBack()')
+  const end = source.indexOf('\n}\n\nasync function handlePrimary', start)
+
+  assert.notEqual(start, -1)
+  assert.notEqual(end, -1)
+  assert.match(source.slice(start, end), /store\.submitError = null/)
+})
+
+test('account number input is visible while retaining a numeric keyboard hint', async () => {
+  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const start = source.indexOf('aria-label="계좌번호"')
+  const end = source.indexOf('</label>', start)
+
+  assert.notEqual(start, -1)
+  assert.notEqual(end, -1)
+  const accountInput = source.slice(start, end)
+  assert.match(accountInput, /inputmode="numeric"/)
+  assert.match(accountInput, /type="text"/)
+  assert.doesNotMatch(accountInput, /type="password"/)
+})

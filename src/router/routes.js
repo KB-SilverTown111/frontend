@@ -1,11 +1,11 @@
 export const routes = [
   {
     path: '/',
-    redirect: { name: 'onboarding', params: { stepId: 'start' } },
+    redirect: { name: 'onboarding', params: { stepId: 'login' } },
   },
   {
     path: '/onboarding',
-    redirect: { name: 'onboarding', params: { stepId: 'start' } },
+    redirect: { name: 'onboarding', params: { stepId: 'login' } },
   },
   {
     path: '/onboarding/help',
@@ -16,6 +16,21 @@ export const routes = [
     path: '/onboarding/:stepId',
     name: 'onboarding',
     component: () => import('@/views/OnboardingView.vue'),
+  },
+  {
+    path: '/transfer',
+    name: 'transfer-home',
+    component: () => import('@/views/TransferHomeView.vue'),
+  },
+  {
+    path: '/bills',
+    name: 'bills-home',
+    component: () => import('@/views/ServiceHomeView.vue'),
+  },
+  {
+    path: '/living',
+    name: 'living-home',
+    component: () => import('@/views/ServiceHomeView.vue'),
   },
   {
     path: '/prototype',
@@ -39,6 +54,6 @@ export const routes = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: { name: 'onboarding', params: { stepId: 'start' } },
+    redirect: { name: 'onboarding', params: { stepId: 'login' } },
   },
 ]

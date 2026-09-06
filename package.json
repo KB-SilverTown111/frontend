@@ -14,7 +14,8 @@
     "prepare": "husky",
     "preview": "vite preview",
     "test:onboarding": "node --test scripts/onboarding-*.test.mjs",
-    "test:prototype": "node --test scripts/prototype-manifest.test.mjs"
+    "test:prototype": "node --test scripts/prototype-manifest.test.mjs",
+    "test:transfer": "node --test scripts/transfer-home.test.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,vue}": [

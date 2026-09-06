@@ -3,12 +3,23 @@ import test from 'node:test'
 
 import { routes } from '../src/router/routes.js'
 
-test('root entry opens the real onboarding start step', () => {
+test('root entry opens the login screen', () => {
   const root = routes.find(({ path }) => path === '/')
   assert.deepEqual(root.redirect, {
     name: 'onboarding',
-    params: { stepId: 'start' },
+    params: { stepId: 'login' },
   })
+})
+
+test('onboarding entry opens the login screen while the signup start route remains available', () => {
+  const onboarding = routes.find(({ path }) => path === '/onboarding')
+  assert.deepEqual(onboarding.redirect, {
+    name: 'onboarding',
+    params: { stepId: 'login' },
+  })
+
+  const onboardingStep = routes.find(({ path }) => path === '/onboarding/:stepId')
+  assert.equal(onboardingStep.path, '/onboarding/:stepId')
 })
 
 test('onboarding route keeps the current step in a readable URL', () => {
