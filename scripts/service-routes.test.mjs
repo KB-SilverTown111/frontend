@@ -147,7 +147,7 @@ test('transfer confirmation renders the prepared recipient, amount, and masked a
   assert.match(routeViewSource, /account\.accountNumberMasked/)
   assert.match(
     routeViewSource,
-    /screen\?\.contentHtml && !\(service === 'transfer' && screenId === '2-08'\)/,
+    /screen\?\.contentHtml[\s\S]*service === 'transfer' && screenId === '2-08'[\s\S]*!hideScreenActions/,
   )
 })
 
