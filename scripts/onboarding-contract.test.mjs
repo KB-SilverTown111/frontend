@@ -5,6 +5,7 @@ import {
   buildSignUpRequest,
   buildVoiceSettingsRequest,
   createOnboardingDraft,
+  formatPhoneNumber,
   parseAuthResponse,
   parseVoiceSettingsResponse,
   validateStep,
@@ -190,4 +191,11 @@ test('new drafts do not share nested consent or emergency contact state', () => 
 
   assert.equal(second.consents.PRIVACY, false)
   assert.equal(second.emergencyContact.name, '')
+})
+
+test('phone input is formatted as a 3-4-4 number while typing', () => {
+  assert.equal(formatPhoneNumber('010'), '010')
+  assert.equal(formatPhoneNumber('0101234'), '010-1234')
+  assert.equal(formatPhoneNumber('010 1234 5678'), '010-1234-5678')
+  assert.equal(formatPhoneNumber('01012345678999'), '010-1234-5678')
 })

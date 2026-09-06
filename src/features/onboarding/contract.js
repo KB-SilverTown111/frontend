@@ -78,6 +78,13 @@ function digits(value) {
   return String(value ?? '').replace(/\D/g, '')
 }
 
+export function formatPhoneNumber(value) {
+  const normalized = digits(value).slice(0, 11)
+  if (normalized.length <= 3) return normalized
+  if (normalized.length <= 7) return `${normalized.slice(0, 3)}-${normalized.slice(3)}`
+  return `${normalized.slice(0, 3)}-${normalized.slice(3, 7)}-${normalized.slice(7)}`
+}
+
 function isBetween(value, minimum, maximum) {
   return Number.isFinite(Number(value)) && Number(value) >= minimum && Number(value) <= maximum
 }

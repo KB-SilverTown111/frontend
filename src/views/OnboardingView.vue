@@ -1,19 +1,27 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Capacitor } from '@capacitor/core'
+import { Camera } from '@capacitor/camera'
+import { Geolocation } from '@capacitor/geolocation'
+import { Contacts } from '@capacitor-community/contacts'
+import { SpeechRecognition } from '@capacitor-community/speech-recognition'
 
 import OnboardingShell from '@/components/onboarding/OnboardingShell.vue'
 import SecureNumberKeypad from '@/components/onboarding/SecureNumberKeypad.vue'
 import { Input } from '@/components/ui/input'
 import { BANKS, getBank } from '@/features/onboarding/banks.js'
-import { resolvePostcodeSelection } from '@/features/onboarding/contract.js'
+import { formatPhoneNumber, resolvePostcodeSelection } from '@/features/onboarding/contract.js'
+import { requestPermissionsInOrder } from '@/features/onboarding/permissions.js'
 import { loadPostcodeApi } from '@/features/onboarding/postcode.js'
 import {
+  areConsentDetailsAgreed,
+  CONSENT_FLOW_RETURN_SCREEN,
+  getNextConsentScreen,
   SCREEN_COPY,
   isOnboardingScreen,
   resetRequiredConsents,
   setConsentDecision,
-  toggleRequiredConsents,
 } from '@/features/onboarding/screens.js'
 import { getAdjacentStep } from '@/features/onboarding/steps.js'
 import { useOnboardingStore } from '@/stores/onboarding.js'
@@ -30,6 +38,7 @@ const postcodeLayer = ref(null)
 const postcodeLoading = ref(false)
 const postcodeOpen = ref(false)
 const residentKeypadOpen = ref(false)
+const permissionsRequesting = ref(false)
 
 const screenId = computed(() => String(route.params.stepId || 'start'))
 const screenCopy = computed(() => {
@@ -85,9 +94,6 @@ const secondaryLabel = computed(
       'consent-optional': '건너뛰기',
       login: '처음 오셨나요?',
       relogin: '도움 받기',
-      'mydata-consent': '동의하지 않음',
-      'ai-voice-consent': '동의하지 않음',
-      'overseas-consent': '동의하지 않음',
       'address-not-found': '직접 입력하기',
       'account-error': '다른 계좌 쓰기',
       'missing-fields': '나중에 하기',
@@ -101,7 +107,7 @@ watch(
   (value) => {
     actionNotice.value = ''
     if (value !== 'resident-number') residentKeypadOpen.value = false
-    if (value === 'consent-overview') resetRequiredConsents(store.draft)
+    if (value === 'start') resetRequiredConsents(store.draft)
     if (!isOnboardingScreen(value)) {
       router.replace({ name: 'onboarding', params: { stepId: 'start' } })
     }
@@ -131,14 +137,40 @@ function decideConsent(agreed) {
   setConsentDecision(store.draft, screenId.value, agreed)
 }
 
-function handleRequiredConsentToggle() {
-  toggleRequiredConsents(store.draft)
+function openRequiredConsentDetails() {
   store.fieldErrors = {}
+  go('mydata-consent')
 }
 
 function selectBank(code) {
   store.draft.bankCode = code
   accountVerified.value = false
+}
+
+function handlePhoneInput(value) {
+  store.draft.phone = formatPhoneNumber(value)
+}
+
+function handleEmergencyPhoneInput(value) {
+  store.draft.emergencyContact.phone = formatPhoneNumber(value)
+}
+
+async function requestPermissionIfNeeded(plugin, permission, options) {
+  const status = await plugin.checkPermissions()
+  if (status?.[permission] === 'granted' || status?.[permission] === 'limited') return
+  await plugin.requestPermissions(options)
+}
+
+async function requestDevicePermissions() {
+  if (!Capacitor.isNativePlatform()) return []
+
+  return requestPermissionsInOrder({
+    contacts: () => requestPermissionIfNeeded(Contacts, 'contacts'),
+    camera: () => requestPermissionIfNeeded(Camera, 'camera', { permissions: ['camera'] }),
+    location: () =>
+      requestPermissionIfNeeded(Geolocation, 'location', { permissions: ['location'] }),
+    microphone: () => requestPermissionIfNeeded(SpeechRecognition, 'speechRecognition'),
+  })
 }
 
 function closePostcode() {
@@ -187,7 +219,7 @@ function goBack() {
   else router.back()
 }
 
-function handlePrimary() {
+async function handlePrimary() {
   const id = screenId.value
   if (id === 'start') return go('consent-overview')
   if (id === 'consent-overview') return validateAndGo(id, 'basic-info')
@@ -210,24 +242,30 @@ function handlePrimary() {
   if (id === 'phone') return validateAndGo(id, 'emergency-contact')
   if (id === 'emergency-contact') return validateAndGo(id, 'permissions')
   if (id === 'permissions') {
-    store.finishUiFlow()
-    return go('complete')
+    if (permissionsRequesting.value) return
+    permissionsRequesting.value = true
+    try {
+      await requestDevicePermissions()
+      store.finishUiFlow()
+      return go('complete')
+    } finally {
+      permissionsRequesting.value = false
+    }
   }
   if (id === 'complete') return requestAppIntent('home')
   if (id === 'login') return go('mydata-consent')
   if (id === 'relogin') return go('login')
-  if (id === 'mydata-consent') {
-    decideConsent(true)
-    return go('ai-voice-consent')
-  }
-  if (id === 'ai-voice-consent') {
-    decideConsent(true)
-    return go('overseas-consent')
-  }
   if (id === 'overseas-consent') {
     decideConsent(true)
-    store.finishUiFlow()
-    return go('complete')
+    if (areConsentDetailsAgreed(store.draft)) {
+      store.draft.consents.TERMS_OF_SERVICE = true
+      store.draft.consents.PRIVACY = true
+    }
+    return go(CONSENT_FLOW_RETURN_SCREEN)
+  }
+  if (['mydata-consent', 'ai-voice-consent'].includes(id)) {
+    decideConsent(true)
+    return go(getNextConsentScreen(id))
   }
   if (id === 'address-not-found') return go('address')
   if (id === 'account-error') return go('bank-account')
@@ -245,17 +283,6 @@ function handleSecondary() {
   }
   if (id === 'login') return go('start')
   if (id === 'relogin') return router.push({ name: 'onboarding-help' })
-  if (['mydata-consent', 'ai-voice-consent', 'overseas-consent'].includes(id)) {
-    decideConsent(false)
-    if (id === 'overseas-consent') store.finishUiFlow()
-    return go(
-      id === 'mydata-consent'
-        ? 'ai-voice-consent'
-        : id === 'ai-voice-consent'
-          ? 'overseas-consent'
-          : 'complete',
-    )
-  }
   if (id === 'address-not-found') return go('address')
   if (id === 'account-error') return go('bank-account')
   if (id === 'missing-fields') return go('permissions')
@@ -268,6 +295,7 @@ function handleSecondary() {
 
 <template>
   <OnboardingShell
+    :busy="permissionsRequesting"
     :description="screenCopy[1]"
     :hide-back="screenId === 'start'"
     :primary-label="primaryLabel"
@@ -304,7 +332,7 @@ function handleSecondary() {
           class="segment-option"
           :class="{ selected: requiredConsentsAgreed }"
           type="button"
-          @click="handleRequiredConsentToggle"
+          @click="openRequiredConsentDetails"
         >
           필수 약관 요약 <b v-if="requiredConsentsAgreed">✓</b>
         </button>
@@ -635,13 +663,16 @@ function handleSecondary() {
       class="figma-stack"
     >
       <Input
-        v-model="store.draft.phone"
+        :model-value="store.draft.phone"
         :aria-describedby="store.fieldErrors.phone ? 'phone-error' : 'phone-guide'"
         aria-label="휴대전화 번호"
         :aria-invalid="Boolean(store.fieldErrors.phone)"
         autocomplete="tel"
         inputmode="tel"
+        maxlength="13"
         placeholder="010-0000-0000"
+        type="tel"
+        @update:model-value="handlePhoneInput"
       />
       <p
         v-if="store.fieldErrors.phone"
@@ -650,12 +681,6 @@ function handleSecondary() {
         role="alert"
       >
         {{ store.fieldErrors.phone }}
-      </p>
-      <p
-        id="phone-guide"
-        class="guide-card"
-      >
-        <b>안내</b> 별도의 SMS 인증·재전송 화면은 기능 명세에 없어 제외했습니다.
       </p>
     </section>
 
@@ -689,14 +714,17 @@ function handleSecondary() {
         placeholder="이름"
       />
       <Input
-        v-model="store.draft.emergencyContact.phone"
+        :model-value="store.draft.emergencyContact.phone"
         :aria-describedby="
           store.fieldErrors.emergencyContactPhone ? 'emergency-contact-error' : undefined
         "
         aria-label="비상 연락처 휴대전화 번호"
         :aria-invalid="Boolean(store.fieldErrors.emergencyContactPhone)"
         inputmode="tel"
+        maxlength="13"
         placeholder="휴대전화 번호"
+        type="tel"
+        @update:model-value="handleEmergencyPhoneInput"
       />
       <p
         v-if="Object.keys(store.fieldErrors).length"
@@ -713,16 +741,16 @@ function handleSecondary() {
       class="figma-stack"
     >
       <div class="status-card status-success">
-        <span class="status-icon">✓</span
-        ><span
-          ><b>연락처 · 카메라 · 위치</b
-          ><small>각 기능을 처음 사용할 때 OS 권한을 요청합니다.</small></span
+        <span class="status-icon">✓</span>
+        <span
+          ><b>연락처 · 카메라 · 위치 · 마이크</b
+          ><small>이해했어요를 누르면 필요한 OS 권한을 한 번에 요청합니다.</small></span
         >
       </div>
       <div class="segment-grid permission-grid">
-        <div class="segment-option selected">연락처 — 송금 대상 찾기 <b>✓</b></div>
+        <div class="segment-option">연락처 — 송금 대상 찾기</div>
         <div class="segment-option">카메라 — 고지서 촬영</div>
-        <div class="segment-option selected">위치 — 이동점포 찾기 <b>✓</b></div>
+        <div class="segment-option">위치 — 이동점포 찾기</div>
         <div class="segment-option">마이크 — 음성 명령</div>
       </div>
     </section>

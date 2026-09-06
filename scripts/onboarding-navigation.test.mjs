@@ -2,6 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  areConsentDetailsAgreed,
+  CONSENT_DETAIL_SEQUENCE,
+  CONSENT_FLOW_RETURN_SCREEN,
+  getNextConsentScreen,
+} from '../src/features/onboarding/screens.js'
+import {
   getAdjacentStep,
   getOnboardingStep,
   ONBOARDING_STEPS,
@@ -33,6 +39,31 @@ test('adjacent navigation returns previous and next route-safe step ids', () => 
   assert.equal(getAdjacentStep('bank-account', -1), 'address')
   assert.equal(getAdjacentStep('start', -1), null)
   assert.equal(getAdjacentStep('complete', 1), null)
+})
+
+test('consent detail screens advance in the required order', () => {
+  assert.deepEqual(CONSENT_DETAIL_SEQUENCE, [
+    'mydata-consent',
+    'ai-voice-consent',
+    'overseas-consent',
+  ])
+  assert.equal(CONSENT_FLOW_RETURN_SCREEN, 'consent-overview')
+  assert.equal(getNextConsentScreen('mydata-consent'), 'ai-voice-consent')
+  assert.equal(getNextConsentScreen('ai-voice-consent'), 'overseas-consent')
+  assert.equal(getNextConsentScreen('overseas-consent'), null)
+  assert.equal(getNextConsentScreen('missing'), null)
+  assert.equal(
+    areConsentDetailsAgreed({
+      consents: { MYDATA: true, AI_VOICE: true, OVERSEAS_TRANSFER: false },
+    }),
+    false,
+  )
+  assert.equal(
+    areConsentDetailsAgreed({
+      consents: { MYDATA: true, AI_VOICE: true, OVERSEAS_TRANSFER: true },
+    }),
+    true,
+  )
 })
 
 test('invalid step ids are rejected instead of silently selecting a step', () => {

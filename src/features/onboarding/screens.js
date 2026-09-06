@@ -33,7 +33,7 @@ export const SCREEN_COPY = Object.freeze({
   'bank-account': ['은행 계좌', '은행과 본인 계좌를 연결합니다.'],
   phone: ['휴대전화', '연락 가능한 번호만 입력합니다.'],
   'emergency-contact': ['비상 연락처', '보호자 또는 가족 연락처를 등록합니다.'],
-  permissions: ['권한 이용 안내', '가입 중에는 교육만 하고, 필요할 때 요청합니다.'],
+  permissions: ['권한 이용 안내', '이해했어요를 누르면 필요한 권한을 한 번에 요청합니다.'],
   complete: ['가입 완료', '필수 정보 입력이 끝났습니다.'],
   login: ['로그인', '등록하신 번호로 본인을 확인합니다.'],
   relogin: ['다시 로그인', '다른 기기에서 접속해 확인이 필요합니다.'],
@@ -56,6 +56,26 @@ export const CONSENT_TYPE_BY_SCREEN = Object.freeze({
   'ai-voice-consent': 'AI_VOICE',
   'overseas-consent': 'OVERSEAS_TRANSFER',
 })
+
+export const CONSENT_DETAIL_SEQUENCE = Object.freeze([
+  'mydata-consent',
+  'ai-voice-consent',
+  'overseas-consent',
+])
+
+export const CONSENT_FLOW_RETURN_SCREEN = 'consent-overview'
+
+export function getNextConsentScreen(screenId) {
+  const currentIndex = CONSENT_DETAIL_SEQUENCE.indexOf(screenId)
+  if (currentIndex < 0) return null
+  return CONSENT_DETAIL_SEQUENCE[currentIndex + 1] ?? null
+}
+
+export function areConsentDetailsAgreed(draft) {
+  return CONSENT_DETAIL_SEQUENCE.every(
+    (screenId) => draft?.consents?.[CONSENT_TYPE_BY_SCREEN[screenId]] === true,
+  )
+}
 
 export function setConsentDecision(draft, screenId, agreed) {
   const consentType = CONSENT_TYPE_BY_SCREEN[screenId]

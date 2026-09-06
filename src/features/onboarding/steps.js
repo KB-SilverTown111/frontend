@@ -1,7 +1,6 @@
 export const ONBOARDING_STEPS = Object.freeze([
   { id: 'start', title: '시작하기', progress: 0 },
   { id: 'consent-overview', title: '약관 한눈에 보기', progress: 1 },
-  { id: 'consent-optional', title: '선택 동의 상세', progress: 2 },
   { id: 'basic-info', title: '기본 정보', progress: 3 },
   { id: 'resident-number', title: '주민등록번호', progress: 4 },
   { id: 'address', title: '주소 입력', progress: 5 },
