@@ -44,22 +44,56 @@ test('transfer store keeps prepared transfer context and calls API actions', asy
   const originals = {
     prepare: transfersApi.prepare,
     validateAmount: transfersApi.validateAmount,
+    confirm: transfersApi.confirm,
     execute: transfersApi.execute,
   }
-  transfersApi.prepare = async () => ({ transferId: 't-1', status: 'READY' })
+  let executeRequest = null
+  transfersApi.prepare = async (request) => ({ transferId: 't-1', status: 'DRAFT', ...request })
   transfersApi.validateAmount = async (request) => ({ ...request, confirmedAmount: 50000 })
-  transfersApi.execute = async () => ({ paymentId: 'p-1', status: 'COMPLETED' })
+  transfersApi.confirm = async () => ({
+    transferId: 't-1',
+    status: 'CONFIRMED',
+    executable: true,
+    confirmationToken: 'one-time-token',
+  })
+  transfersApi.execute = async (transferId, request) => {
+    executeRequest = request
+    return { transactionId: 'x-1', transferId, status: 'SUCCESS', amount: 50000 }
+  }
 
   try {
     const store = useTransferStore()
     await store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 })
     const validation = await store.validateAmount({ recognizedAmount: 50000, amountCandidates: [] })
+    await store.confirm({ approved: true })
     const result = await store.execute()
 
     assert.equal(store.transferId, 't-1')
     assert.equal(validation.confirmedAmount, 50000)
-    assert.equal(result.paymentId, 'p-1')
-    assert.equal(store.result.status, 'COMPLETED')
+    assert.equal(store.executable, true)
+    assert.equal(executeRequest.confirmationToken, 'one-time-token')
+    assert.equal(result.status, 'SUCCESS')
+    assert.equal(store.result.transactionId, 'x-1')
+  } finally {
+    Object.assign(transfersApi, originals)
+  }
+})
+
+test('transfer store refuses to execute without a server confirmation token', async () => {
+  setup()
+  const originals = { prepare: transfersApi.prepare, execute: transfersApi.execute }
+  let executed = false
+  transfersApi.prepare = async () => ({ transferId: 't-2', status: 'DRAFT' })
+  transfersApi.execute = async () => {
+    executed = true
+    return { status: 'SUCCESS' }
+  }
+
+  try {
+    const store = useTransferStore()
+    await store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 })
+    await assert.rejects(() => store.execute())
+    assert.equal(executed, false)
   } finally {
     Object.assign(transfersApi, originals)
   }
