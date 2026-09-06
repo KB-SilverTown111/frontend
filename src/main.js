@@ -3,11 +3,17 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router/index.js'
+import { useOnboardingStore } from './stores/onboarding.js'
 import './styles/globals.css'
 
-const app = createApp(App)
+async function bootstrap() {
+  const app = createApp(App)
+  const pinia = createPinia()
 
-app.use(createPinia())
-app.use(router)
+  app.use(pinia)
+  app.use(router)
+  await useOnboardingStore(pinia).restoreAuthSession()
+  app.mount('#app')
+}
 
-app.mount('#app')
+bootstrap()

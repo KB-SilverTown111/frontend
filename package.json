@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare": "husky",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:onboarding": "node --test scripts/onboarding-*.test.mjs",
+    "test:prototype": "node --test scripts/prototype-manifest.test.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,vue}": [
@@ -21,7 +23,15 @@
     ]
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor-community/contacts": "^8.0.0",
+    "@capacitor-community/speech-recognition": "^7.0.1",
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/camera": "^8.2.4",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/geolocation": "^8.2.2",
     "@tailwindcss/vite": "^4.3.3",
+    "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "pinia": "^4.0.2",
@@ -31,6 +41,7 @@
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^10.0.1",

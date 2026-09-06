@@ -56,3 +56,6 @@ tmp/
 ### Node / Vite ###
 node_modules/
 dist/
+
+### plugins ###
+graphify*
