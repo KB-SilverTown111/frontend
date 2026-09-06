@@ -539,7 +539,7 @@ onMounted(() => {
         </div>
 
         <section
-          v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)"
+          v-if="screen?.contentHtml && !showVoiceControl"
           class="service-route-screen-content prototype-screen-content"
           :data-variant="screen.variant"
         >
@@ -634,7 +634,7 @@ onMounted(() => {
         </Card>
       </main>
 
-      <footer v-if="screen && !showVoiceControl && (screen.primaryLabel || screen.secondaryLabel)">
+      <footer v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)">
         <Button
           v-if="screen.primaryLabel"
           class="service-route-primary"
