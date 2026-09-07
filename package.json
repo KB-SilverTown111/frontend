@@ -15,6 +15,8 @@
     "preview": "vite preview",
     "test:onboarding": "node --test scripts/onboarding-*.test.mjs",
     "test:screen-data": "node --test scripts/screen-data.test.mjs",
+    "test:app-loading": "node --test scripts/app-loading.test.mjs",
+    "test:auto-login": "node --test scripts/auto-login.test.mjs",
     "test:transfer": "node --test scripts/transfer-home.test.mjs",
     "test:service-routes": "node --test scripts/service-routes.test.mjs",
     "test:service-api": "node --test scripts/service-api.test.mjs",

@@ -1,16 +1,22 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { stripProductionSelectionIndicators } from '@/services/screenContent.js'
+import { withAppLoading } from '@/services/appLoading.js'
 import {
   getProductionActionRoutes,
   getProductionHomeRoute,
   loadProductionScreen,
 } from '@/services/productionServiceScreens.js'
-import { getContactCandidates, photoToBlob, takeBillPhoto } from '@/services/nativeCapabilities.js'
+import {
+  captureVideoFrame,
+  getContactCandidates,
+  photoToBlob,
+  takeBillPhoto,
+} from '@/services/nativeCapabilities.js'
 import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
@@ -31,6 +37,11 @@ const screen = ref(null)
 const loading = ref(true)
 const actionBusy = ref(false)
 const actionError = ref('')
+const billCameraVideo = ref(null)
+const billCameraReady = ref(false)
+const billCameraPreviewUrl = ref('')
+let billCameraStream = null
+let billCameraRequestId = 0
 const riskPurpose = ref('')
 const transferPin = ref('')
 const recipientSearch = ref('')
@@ -56,6 +67,8 @@ const VOICE_SERVICES = Object.keys(VOICE_CONVERSATION_SCREENS)
 const showVoiceControl = computed(() =>
   (VOICE_CONVERSATION_SCREENS[service.value] ?? []).includes(screenId.value),
 )
+const isBillSourceSelection = computed(() => service.value === 'bills' && screenId.value === '3-02')
+const isBillCameraScreen = computed(() => service.value === 'bills' && screenId.value === '3-02A')
 
 /**
  * 2-02만 패널의 키보드 입력과 화면 버튼 라벨이 겹친다.
@@ -176,6 +189,92 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('ko-KR')
 }
 
+function stopBillCamera() {
+  billCameraRequestId += 1
+  billCameraStream?.getTracks().forEach((track) => track.stop())
+  billCameraStream = null
+  billCameraReady.value = false
+
+  if (billCameraVideo.value) {
+    billCameraVideo.value.srcObject = null
+  }
+}
+
+function clearBillCameraPreview() {
+  const objectUrl = globalThis.URL
+  if (billCameraPreviewUrl.value && typeof objectUrl?.revokeObjectURL === 'function') {
+    objectUrl.revokeObjectURL(billCameraPreviewUrl.value)
+  }
+  billCameraPreviewUrl.value = ''
+}
+
+function setBillCameraPreview(image) {
+  const objectUrl = globalThis.URL
+  if (!image || typeof objectUrl?.createObjectURL !== 'function') return
+
+  clearBillCameraPreview()
+  billCameraPreviewUrl.value = objectUrl.createObjectURL(image)
+}
+
+function cleanupBillCamera() {
+  stopBillCamera()
+  clearBillCameraPreview()
+}
+
+async function startBillCamera() {
+  stopBillCamera()
+  const requestId = billCameraRequestId
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    actionError.value =
+      '카메라 미리보기를 준비할 수 없어요. 촬영 버튼을 눌러 기기 카메라를 열어 주세요.'
+    return
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    })
+
+    if (requestId !== billCameraRequestId || !isBillCameraScreen.value) {
+      stream.getTracks().forEach((track) => track.stop())
+      return
+    }
+
+    const video = billCameraVideo.value
+    if (!video) {
+      stream.getTracks().forEach((track) => track.stop())
+      return
+    }
+
+    billCameraStream = stream
+    video.srcObject = stream
+    await video.play()
+
+    if (requestId !== billCameraRequestId || !isBillCameraScreen.value) {
+      if (billCameraStream === stream) {
+        stopBillCamera()
+      } else {
+        stream.getTracks().forEach((track) => track.stop())
+      }
+      return
+    }
+
+    billCameraReady.value = true
+  } catch (error) {
+    if (requestId !== billCameraRequestId) return
+
+    stopBillCamera()
+    if (isBillCameraScreen.value) {
+      actionError.value =
+        error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
+          ? '카메라 권한을 허용해 주세요. 촬영 버튼을 누르면 다시 시도할 수 있어요.'
+          : '카메라 미리보기를 준비하지 못했어요. 촬영 버튼을 눌러 다시 시도해 주세요.'
+    }
+  }
+}
+
 function normalizeTransferAmount(event) {
   transferAmountInput.value = String(event.target.value || '').replace(/\D/g, '')
   actionError.value = ''
@@ -222,37 +321,46 @@ async function loadContext(currentService, currentScreenId) {
 
 async function loadScreen() {
   const sequence = ++loadSequence
-  loading.value = true
-  screen.value = null
-  actionError.value = ''
-  riskPurpose.value = ''
-  transferPin.value = ''
+  return withAppLoading(async () => {
+    cleanupBillCamera()
+    loading.value = true
+    screen.value = null
+    actionError.value = ''
+    riskPurpose.value = ''
+    transferPin.value = ''
 
-  let nextScreen
-  try {
-    nextScreen = await loadProductionScreen(service.value, screenId.value)
-  } catch {
+    let nextScreen
+    try {
+      nextScreen = await loadProductionScreen(service.value, screenId.value)
+    } catch {
+      if (sequence !== loadSequence) return
+      actionError.value = '화면을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'
+    }
     if (sequence !== loadSequence) return
-    actionError.value = '화면을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'
-  }
-  if (sequence !== loadSequence) return
 
-  screen.value = nextScreen
-  loading.value = false
-  await loadContext(service.value, screenId.value)
+    screen.value = nextScreen
+    loading.value = false
+    await loadContext(service.value, screenId.value)
+
+    if (sequence !== loadSequence || !isBillCameraScreen.value) return
+
+    await nextTick()
+    if (sequence === loadSequence) await startBillCamera()
+  })
 }
 
 async function go(target) {
   if (target) await router.push(target)
 }
 
-async function uploadBill(source) {
+async function uploadBill(source, capturedImage = null) {
   actionBusy.value = true
   actionError.value = ''
   try {
-    const photo = await takeBillPhoto(source)
-    const image = await photoToBlob(photo)
+    const photo = capturedImage ? null : await takeBillPhoto(source)
+    const image = capturedImage ?? (await photoToBlob(photo))
     if (!image) throw new Error('사진을 읽을 수 없어요. 다시 촬영해 주세요.')
+    if (source === 'camera') setBillCameraPreview(image)
 
     let voiceSessionId = ''
     if (voiceStore.session?.entryPoint === 'BILL_PAYMENT') {
@@ -278,6 +386,24 @@ async function uploadBill(source) {
     }
   } finally {
     actionBusy.value = false
+  }
+}
+
+async function captureBillFrame() {
+  const video = billCameraVideo.value
+
+  if (!video?.srcObject || !billCameraReady.value) {
+    stopBillCamera()
+    return uploadBill('camera')
+  }
+
+  try {
+    const image = await captureVideoFrame(billCameraVideo.value)
+    stopBillCamera()
+    return uploadBill('camera', image)
+  } catch {
+    stopBillCamera()
+    return uploadBill('camera')
   }
 }
 
@@ -349,7 +475,7 @@ async function handlePrimary() {
   if (!screen.value || isBusy.value) return
   actionError.value = ''
 
-  if (service.value === 'bills' && screenId.value === '3-02A') return uploadBill('camera')
+  if (service.value === 'bills' && screenId.value === '3-02A') return captureBillFrame()
   if (service.value === 'bills' && screenId.value === '3-04' && billStore.billId) {
     await billStore
       .confirm({
@@ -536,6 +662,8 @@ function openVoice() {
 
 /** 서비스를 완전히 벗어날 때만 세션을 닫는다. 같은 서비스 안의 화면 이동은 유지한다. */
 onBeforeRouteLeave((to) => {
+  cleanupBillCamera()
+
   if (!VOICE_SERVICES.includes(service.value)) return
   if (to.meta?.service === service.value || to.name === `${service.value}-home`) return
 
@@ -545,6 +673,9 @@ onBeforeRouteLeave((to) => {
 })
 
 watch([service, screenId], loadScreen, { immediate: true })
+
+onBeforeUnmount(cleanupBillCamera)
+
 onMounted(() => {
   if (service.value === 'bills' && screenId.value === '3-02A') billStore.reset()
 })
@@ -593,10 +724,123 @@ onMounted(() => {
         </div>
 
         <section
+          v-if="screen && isBillSourceSelection"
+          class="service-route-screen-content screen-content bill-source-selection"
+          :data-variant="screen.variant"
+        >
+          <div class="content">
+            <section class="hero">
+              <div
+                aria-hidden="true"
+                class="hero-icon"
+              >
+                ✓
+              </div>
+              <div>
+                <strong>고지서를 화면 안에 맞춰 주세요</strong>
+                <p>빛 반사를 피하면 더 정확해요.</p>
+              </div>
+            </section>
+            <div
+              aria-label="고지서 사진 선택"
+              class="choices"
+              role="group"
+            >
+              <button
+                class="choice"
+                :disabled="isBusy"
+                type="button"
+                @click="go(primaryRoute)"
+              >
+                카메라 촬영
+              </button>
+              <button
+                class="choice"
+                :disabled="isBusy"
+                type="button"
+                @click="uploadBill('gallery')"
+              >
+                앨범에서 선택
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="screen && isBillCameraScreen"
+          class="service-route-screen-content screen-content bill-camera-capture"
+          :data-variant="screen.variant"
+        >
+          <div class="content">
+            <div class="viewfinder bill-camera-viewfinder">
+              <video
+                v-show="billCameraReady && !billCameraPreviewUrl"
+                ref="billCameraVideo"
+                aria-label="고지서 촬영 미리보기"
+                autoplay
+                muted
+                playsinline
+              ></video>
+              <div
+                v-if="billCameraPreviewUrl"
+                aria-live="polite"
+                class="bill-camera-preview"
+              >
+                <img
+                  alt="촬영한 고지서 미리보기"
+                  :src="billCameraPreviewUrl"
+                />
+                <p
+                  v-if="actionBusy"
+                  class="bill-camera-status"
+                  role="status"
+                >
+                  사진을 확인하고 있어요.
+                </p>
+              </div>
+              <div
+                v-else-if="!billCameraReady"
+                aria-live="polite"
+                class="bill-camera-placeholder"
+              >
+                <span
+                  aria-hidden="true"
+                  class="bill-camera-placeholder-icon"
+                ></span>
+                <p
+                  class="bill-camera-status"
+                  role="status"
+                >
+                  카메라를 준비하고 있어요.
+                </p>
+              </div>
+              <div
+                aria-hidden="true"
+                class="vf-corner tl"
+              ></div>
+              <div
+                aria-hidden="true"
+                class="vf-corner tr"
+              ></div>
+              <div
+                aria-hidden="true"
+                class="vf-corner bl"
+              ></div>
+              <div
+                aria-hidden="true"
+                class="vf-corner br"
+              ></div>
+            </div>
+          </div>
+        </section>
+
+        <section
           v-if="
             screen?.contentHtml &&
             !(service === 'transfer' && screenId === '2-08') &&
             !hideScreenActions &&
+            !isBillSourceSelection &&
+            !isBillCameraScreen &&
             !showVoiceControl &&
             !showTransferFlow
           "
@@ -871,30 +1115,34 @@ onMounted(() => {
             <p>잠시 후 다시 시도하거나 서비스 홈으로 이동해 주세요.</p>
           </CardContent>
         </Card>
+        <footer
+          v-if="
+            screen &&
+            !hideScreenActions &&
+            !isBillSourceSelection &&
+            (screen.primaryLabel || screen.secondaryLabel)
+          "
+          class="app-actions service-route-actions"
+        >
+          <Button
+            v-if="screen.primaryLabel"
+            class="service-route-primary"
+            :disabled="isBusy"
+            @click="handlePrimary"
+          >
+            {{ isBusy ? '처리하고 있어요…' : screen.primaryLabel }}
+          </Button>
+          <Button
+            v-if="screen.secondaryLabel"
+            class="service-route-secondary"
+            :disabled="isBusy"
+            variant="secondary"
+            @click="handleSecondary"
+          >
+            {{ screen.secondaryLabel }}
+          </Button>
+        </footer>
       </main>
-
-      <footer
-        v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)"
-        class="app-actions service-route-actions"
-      >
-        <Button
-          v-if="screen.primaryLabel"
-          class="service-route-primary"
-          :disabled="isBusy"
-          @click="handlePrimary"
-        >
-          {{ isBusy ? '처리하고 있어요…' : screen.primaryLabel }}
-        </Button>
-        <Button
-          v-if="screen.secondaryLabel"
-          class="service-route-secondary"
-          :disabled="isBusy"
-          variant="secondary"
-          @click="handleSecondary"
-        >
-          {{ screen.secondaryLabel }}
-        </Button>
-      </footer>
 
       <nav
         aria-label="주요 메뉴"

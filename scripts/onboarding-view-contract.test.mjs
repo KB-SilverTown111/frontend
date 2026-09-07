@@ -23,6 +23,23 @@ test('permissions step submits signup before completing the UI flow', async () =
   assert.match(source, /if \(id === 'permissions'\) return submitOnboarding\(\)/)
 })
 
+test('successful signup goes directly to the transfer home screen', async () => {
+  const source = await readOnboardingView()
+  const submitFunction = source.match(
+    /async function submitOnboarding\(\)\s*\{([\s\S]*?)\n\s*\}\n\s*function closePostcode/,
+  )?.[1]
+
+  assert.ok(submitFunction)
+  assert.doesNotMatch(submitFunction, /go\('complete'\)/)
+  assert.match(submitFunction, /store\.finishUiFlow\(\)/)
+  assert.match(submitFunction, /requestAppIntent\('home'\)/)
+  assert.match(submitFunction, /return router\.push\(\{ name: 'transfer-home' \}\)/)
+  assert.ok(
+    submitFunction.indexOf('store.finishUiFlow()') <
+      submitFunction.indexOf("requestAppIntent('home')"),
+  )
+})
+
 test('already granted native permissions skip the permissions screen', async () => {
   const source = await readOnboardingView()
 
@@ -56,14 +73,15 @@ test('login is an entry screen without a back button', async () => {
   assert.match(source, /:hide-back="screenId === 'login'"/)
 })
 
-test('login exposes a persistent two-level font size picker', async () => {
+test('login opens a separate font size setting screen from a summary card', async () => {
   const view = await readOnboardingView()
   const service = await readFile(new URL('../src/services/fontScale.js', import.meta.url), 'utf8')
 
-  assert.match(view, /font-size-picker/)
-  assert.match(view, /기본 크기/)
-  assert.match(view, /큰 글씨/)
-  assert.match(view, /setFontScale/)
+  assert.match(view, /class="my-page-card login-font-size-card"/)
+  assert.match(view, /:to="\{ name: 'font-size' \}"/)
+  assert.match(view, /fontScale === FONT_SCALE\.large \? '큰 글씨' : '기본 크기'/)
+  assert.doesNotMatch(view, /font-size-picker/)
+  assert.doesNotMatch(view, /function setFontScale\(/)
   assert.match(service, /gwipyeonhan-font-scale/)
   assert.match(service, /localStorage/)
 })
@@ -158,6 +176,25 @@ test('account number input is visible while retaining a numeric keyboard hint', 
   assert.doesNotMatch(accountInput, /type="password"/)
 })
 
+test('account input uses its card as the focus indicator without native decoration', async () => {
+  const styleSource = await readFile(
+    new URL('../src/styles/onboarding.css', import.meta.url),
+    'utf8',
+  )
+  const inputBlock = styleSource.match(/\.input-segment input\s*\{([\s\S]*?)\}/)?.[1]
+  const focusBlock = styleSource.match(/\.input-segment:focus-within\s*\{([\s\S]*?)\}/)?.[1]
+
+  assert.ok(inputBlock, 'account input should have a dedicated native input rule')
+  assert.ok(focusBlock, 'account card should expose focus-within styling')
+  assert.match(inputBlock, /-webkit-appearance:\s*none;/)
+  assert.match(inputBlock, /appearance:\s*none;/)
+  assert.match(inputBlock, /background:\s*transparent;/)
+  assert.match(inputBlock, /box-shadow:\s*none;/)
+  assert.match(focusBlock, /border-color:\s*var\(--primary\);/)
+  assert.match(focusBlock, /background:\s*var\(--muted\);/)
+  assert.match(focusBlock, /box-shadow:\s*inset 0 0 0 1px var\(--primary\);/)
+})
+
 test('onboarding action buttons use the senior-readable type scale', async () => {
   const styleSource = await readFile(
     new URL('../src/styles/onboarding.css', import.meta.url),
@@ -190,5 +227,45 @@ test('onboarding supporting text keeps a readable scale below the action buttons
     styleSource,
     /\.segment-option,[\s\S]*?\.detail-row,[\s\S]*?\.native-select\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\);/,
   )
-  assert.match(styleSource, /\.app-bottom-nav button\s*\{[\s\S]*?font-size:\s*14px;/)
+  assert.match(
+    styleSource,
+    /\.app-bottom-nav button\s*\{[\s\S]*?font-size:\s*var\(--font-size-nav\);/,
+  )
+})
+
+test('mobile app chrome reserves space around system bars', async () => {
+  const styleSource = await readFile(
+    new URL('../src/styles/onboarding.css', import.meta.url),
+    'utf8',
+  )
+  const transferStyleSource = await readFile(
+    new URL('../src/styles/transfer.css', import.meta.url),
+    'utf8',
+  )
+  const mobileStyles = styleSource.slice(styleSource.indexOf('@media (max-width: 430px)'))
+
+  assert.match(
+    styleSource,
+    /\.mobile-app-shell\s*\{[\s\S]*?--app-safe-area-top:\s*0px;[\s\S]*?--app-safe-area-bottom:\s*0px;/,
+  )
+  assert.match(
+    styleSource,
+    /\.app-header\s*\{[\s\S]*?height:\s*calc\(76px \+ var\(--app-safe-area-top\)\);[\s\S]*?flex:\s*0 0 calc\(76px \+ var\(--app-safe-area-top\)\);/,
+  )
+  assert.match(
+    styleSource,
+    /\.app-actions\s*\{[\s\S]*?margin-top:\s*8px;[\s\S]*?padding: 0 0 calc\(22px \+ var\(--app-safe-area-bottom\)\);/,
+  )
+  assert.match(
+    styleSource,
+    /\.app-bottom-nav\s*\{[\s\S]*?min-height:\s*calc\(58px \+ var\(--app-safe-area-bottom\)\);[\s\S]*?padding-bottom:\s*var\(--app-safe-area-bottom\);/,
+  )
+  assert.match(
+    transferStyleSource,
+    /\.transfer-bottom-nav,[\s\S]*?\.my-page-bottom-nav\s*\{[\s\S]*?min-height:\s*calc\(64px \+ var\(--app-safe-area-bottom\)\);/,
+  )
+  assert.match(
+    mobileStyles,
+    /\.mobile-app-shell\s*\{[\s\S]*?--app-safe-area-top:\s*max\(16px, env\(safe-area-inset-top\)\);[\s\S]*?--app-safe-area-bottom:\s*max\(12px, env\(safe-area-inset-bottom\)\);/,
+  )
 })

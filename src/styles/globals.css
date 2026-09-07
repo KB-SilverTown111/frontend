@@ -58,6 +58,7 @@
   --font-size-body: 19px;
   --font-size-action: 24px;
   --font-size-display: 36px;
+  --font-size-nav: 16px;
   --touch-target-min: 64px;
 }
 
@@ -66,6 +67,7 @@
   --font-size-body: 21px;
   --font-size-action: 28px;
   --font-size-display: 40px;
+  --font-size-nav: 18px;
 }
 
 * {
@@ -95,4 +97,9 @@ input:focus-visible,
 [tabindex]:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--ring) 45%, transparent);
   outline-offset: 2px;
+}
+
+input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
 }

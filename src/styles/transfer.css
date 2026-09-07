@@ -164,7 +164,7 @@
   place-items: center;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-nav);
   font-weight: 750;
   text-decoration: none;
 }
@@ -271,7 +271,7 @@
   place-items: center;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-nav);
   font-weight: 750;
   text-decoration: none;
 }
@@ -524,7 +524,7 @@
   display: grid;
   place-items: center;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-nav);
   font-weight: 750;
   text-decoration: none;
 }
@@ -569,6 +569,109 @@
 
 .service-route-screen-content .choice {
   width: 100%;
+}
+
+.bill-source-selection .choice {
+  cursor: pointer;
+  text-align: left;
+}
+
+.bill-source-selection .choice:hover {
+  background: var(--muted);
+}
+
+.bill-source-selection .choice:disabled {
+  cursor: wait;
+}
+
+.bill-camera-viewfinder video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bill-camera-placeholder,
+.bill-camera-preview {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.bill-camera-placeholder {
+  gap: 12px;
+  background: var(--foreground);
+}
+
+.bill-camera-placeholder-icon {
+  position: relative;
+  width: 56px;
+  height: 40px;
+  border: 4px solid var(--primary);
+  border-radius: 10px;
+}
+
+.bill-camera-placeholder-icon::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 10px;
+  width: 20px;
+  height: 8px;
+  border-radius: 4px 4px 0 0;
+  background: var(--primary);
+}
+
+.bill-camera-placeholder-icon::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 16px;
+  width: 16px;
+  height: 16px;
+  border: 4px solid var(--primary);
+  border-radius: 50%;
+}
+
+.bill-camera-preview {
+  overflow: hidden;
+  background: var(--foreground);
+}
+
+.bill-camera-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bill-camera-viewfinder .vf-corner,
+.bill-camera-viewfinder .vf-hint,
+.bill-camera-status {
+  z-index: 2;
+}
+
+.bill-camera-viewfinder .vf-corner {
+  z-index: 3;
+}
+
+.bill-camera-status {
+  position: absolute;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgb(23 63 82 / 78%);
+  color: #fff;
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.bill-camera-placeholder .bill-camera-status {
+  position: static;
 }
 
 .service-route-screen-content .field {
@@ -633,7 +736,7 @@
 .service-bottom-nav,
 .service-route-bottom-nav,
 .my-page-bottom-nav {
-  min-height: 64px;
+  min-height: calc(64px + var(--app-safe-area-bottom));
 }
 
 .transfer-bottom-nav a,
@@ -641,7 +744,7 @@
 .service-route-bottom-nav a,
 .my-page-bottom-nav a {
   min-height: 56px;
-  font-size: 14px;
+  font-size: var(--font-size-nav);
 }
 
 .my-page-bottom-nav {
@@ -652,7 +755,8 @@
   display: grid;
   place-items: center;
   color: var(--muted-foreground);
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--font-size-nav);
   font-weight: 750;
   text-decoration: none;
 }
