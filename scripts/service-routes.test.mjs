@@ -281,6 +281,49 @@ test('active reminder queries use the supported SCHEDULED status', () => {
   assert.match(routeViewSource, /loadReminders\(\{ status: 'SCHEDULED' \}\)/)
 })
 
+test('reminder routes render server-backed list states and a retry action', () => {
+  assert.match(routeViewSource, /const isReminderListScreen = computed/)
+  assert.match(routeViewSource, /serviceData\.loading\.reminders/)
+  assert.match(routeViewSource, /serviceData\.errors\.reminders/)
+  assert.match(routeViewSource, /!serviceData\.reminders\.length/)
+  assert.match(routeViewSource, /reloadReminders/)
+  assert.match(routeViewSource, /reminder\.title/)
+  assert.match(routeViewSource, /formatReminderDateTime\(reminder\.scheduledAt\)/)
+  assert.match(routeViewSource, /reminderStatusLabel\(reminder\.status\)/)
+  assert.match(routeViewSource, /role="alert"/)
+  assert.match(routeViewSource, /query: \{ reminderId \}/)
+  assert.doesNotMatch(routeViewSource, /전기요금 납부 알림/)
+  assert.match(routeViewSource, /!isReminderScreen/)
+})
+
+test('reminder create and edit forms validate fields and use the CRUD store actions', () => {
+  assert.match(routeViewSource, /v-model="reminderTitle"/)
+  assert.match(routeViewSource, /v-model="reminderDate"/)
+  assert.match(routeViewSource, /v-model="reminderTime"/)
+  assert.match(routeViewSource, /!reminderDate\.value \|\| !reminderTime\.value/)
+  assert.match(routeViewSource, /Date\.now\(\)/)
+  assert.match(routeViewSource, /serviceData\.createReminder/)
+  assert.match(routeViewSource, /serviceData\.updateReminder/)
+  assert.match(routeViewSource, /serviceData\.loading\.reminders/)
+  assert.match(routeViewSource, /route\.query\.reminderId/)
+})
+
+test('reminder cancel uses an accessible confirmation dialog and does not navigate on failure', () => {
+  const cancelSource = routeViewSource.slice(
+    routeViewSource.indexOf('async function confirmReminderCancel'),
+    routeViewSource.indexOf('async function handlePrimary'),
+  )
+
+  assert.match(routeViewSource, /role="dialog"/)
+  assert.match(routeViewSource, /aria-modal="true"/)
+  assert.match(routeViewSource, /showReminderCancelConfirm/)
+  assert.match(cancelSource, /serviceData\.cancelReminder/)
+  assert.match(cancelSource, /catch \(error\)/)
+  assert.match(cancelSource, /reminderMutationMessage\('cancel', error\)/)
+  assert.match(cancelSource, /try \{[\s\S]*?await go\(\{ name: 'living-screen'/)
+  assert.match(routeViewSource, /알림 취소/)
+})
+
 test('transfer risk clearance skips rescoring after a safe risk check', () => {
   assert.match(routeViewSource, /if \(!transferStore\.riskCleared\)/)
   assert.match(routeViewSource, /transferStore\.isRiskHeld\(risk\)[\s\S]*screenId: '2-10'/)

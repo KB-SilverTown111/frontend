@@ -101,7 +101,7 @@ test('bill OCR uses multipart image and voice session fields', async () => {
   }
 })
 
-test('reminder API exposes only list and create paths', async () => {
+test('reminder API uses list, create, update, and cancel paths with idempotency keys', async () => {
   const requests = []
   const restore = useAdapter((config) => {
     requests.push(config)
@@ -109,13 +109,25 @@ test('reminder API exposes only list and create paths', async () => {
 
   try {
     await remindersApi.list({ status: 'SCHEDULED' })
-    await remindersApi.create({ title: '전기요금', scheduledAt: '2026-09-10T09:00:00+09:00' })
+    await remindersApi.create({ title: '병원 예약', scheduledAt: '2026-09-10T09:00:00+09:00' })
+    await remindersApi.update(
+      'r-1',
+      { title: '병원 예약 변경', scheduledAt: '2026-09-11T10:30:00+09:00' },
+      {},
+    )
+    await remindersApi.cancel('r-1')
     assert.deepEqual(
       requests.map(({ method, url }) => `${method}:${url}`),
-      ['get:/reminders', 'post:/reminders'],
+      ['get:/reminders', 'post:/reminders', 'put:/reminders/r-1', 'delete:/reminders/r-1'],
     )
     assert.deepEqual(requests[0].params, { status: 'SCHEDULED' })
     assert.equal(requests[1].headers['Idempotency-Key'].length > 0, true)
+    assert.equal(requests[2].headers['Idempotency-Key'].length > 0, true)
+    assert.equal(requests[3].headers['Idempotency-Key'].length > 0, true)
+    assert.deepEqual(JSON.parse(requests[2].data), {
+      title: '병원 예약 변경',
+      scheduledAt: '2026-09-11T10:30:00+09:00',
+    })
   } finally {
     restore()
   }

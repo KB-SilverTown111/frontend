@@ -44,10 +44,16 @@ const voiceStore = useVoiceStore()
 
 const service = computed(() => String(route.meta.service || '').trim())
 const screenId = computed(() => String(route.params.screenId || ''))
+const reminderTargetId = computed(() => String(route.query.reminderId || '').trim())
 const screen = ref(null)
 const loading = ref(true)
 const actionBusy = ref(false)
 const actionError = ref('')
+const reminderTitle = ref('')
+const reminderDate = ref('')
+const reminderTime = ref('')
+const showReminderCancelConfirm = ref(false)
+const reminderCancelDialog = ref(null)
 const billCameraVideo = ref(null)
 const billCameraReady = ref(false)
 const billCameraPreviewUrl = ref('')
@@ -90,6 +96,38 @@ const showVoiceControl = computed(() =>
 )
 const isBillSourceSelection = computed(() => service.value === 'bills' && screenId.value === '3-02')
 const isBillCameraScreen = computed(() => service.value === 'bills' && screenId.value === '3-02A')
+const isReminderListScreen = computed(() => service.value === 'living' && screenId.value === '4-06')
+const isReminderCreateScreen = computed(
+  () => service.value === 'living' && screenId.value === '4-07',
+)
+const isReminderEditScreen = computed(() => service.value === 'living' && screenId.value === '4-08')
+const isReminderEmptyScreen = computed(
+  () => service.value === 'living' && screenId.value === '4-17',
+)
+const isReminderErrorScreen = computed(
+  () => service.value === 'living' && screenId.value === '4-18',
+)
+const isReminderFormScreen = computed(
+  () => isReminderCreateScreen.value || isReminderEditScreen.value,
+)
+const isReminderScreen = computed(
+  () =>
+    isReminderListScreen.value ||
+    isReminderFormScreen.value ||
+    isReminderEmptyScreen.value ||
+    isReminderErrorScreen.value,
+)
+const selectedReminder = computed(
+  () =>
+    serviceData.reminders.find(
+      (reminder) => String(reminder?.reminderId ?? reminder?.id ?? '') === reminderTargetId.value,
+    ) || null,
+)
+const reminderMinDate = computed(() => {
+  const now = new Date()
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+})
 const isMobileBranchListScreen = computed(
   () => service.value === 'living' && screenId.value === '4-10',
 )
@@ -119,7 +157,6 @@ const showRecipientSearch = computed(
 const liveKind = computed(() => {
   if (service.value === 'living') {
     if (['4-02', '4-03', '4-04'].includes(screenId.value)) return 'accounts'
-    if (['4-06', '4-07', '4-08', '4-17', '4-18'].includes(screenId.value)) return 'reminders'
   }
   if (
     service.value === 'bills' &&
@@ -134,7 +171,6 @@ const liveKind = computed(() => {
 const liveTitle = computed(() => {
   const titles = {
     accounts: '내 계좌에서 불러온 정보',
-    reminders: '서버에 저장된 알림',
     bill: '고지서 인식 결과',
   }
   return titles[liveKind.value] || ''
@@ -154,12 +190,6 @@ const liveRows = computed(() => {
     return serviceData.accounts.map((account) => ({
       label: account.accountName || account.accountType || '계좌',
       value: account.accountNumberMasked || formatCurrency(account.balance),
-    }))
-  }
-  if (liveKind.value === 'reminders') {
-    return serviceData.reminders.map((reminder) => ({
-      label: reminder.title || '납부 알림',
-      value: formatDate(reminder.scheduledAt || reminder.dueDate),
     }))
   }
   if (liveKind.value === 'bill' && billStore.bill) {
@@ -241,6 +271,7 @@ const isBusy = computed(
     actionBusy.value ||
     transferStore.busy ||
     billStore.busy ||
+    (service.value === 'living' && serviceData.loading.reminders) ||
     (service.value === 'transfer' && serviceData.loading.accounts) ||
     (isMobileBranchListScreen.value &&
       (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
@@ -255,6 +286,79 @@ function formatDate(value) {
   if (!value) return '일정 확인 중'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('ko-KR')
+}
+
+function reminderIdentifier(reminder) {
+  return String(reminder?.reminderId ?? reminder?.id ?? '').trim()
+}
+
+function formatReminderDateTime(value) {
+  if (!value) return '예약일시 확인 중'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return date.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function reminderStatusLabel(status) {
+  const labels = {
+    SCHEDULED: '예약됨',
+    ACTIVE: '진행 중',
+    COMPLETED: '완료',
+    CANCELLED: '취소됨',
+    CANCELED: '취소됨',
+  }
+  const normalizedStatus = String(status ?? '')
+    .trim()
+    .toUpperCase()
+  return labels[normalizedStatus] || (normalizedStatus ? String(status) : '상태 확인 중')
+}
+
+function reminderInputValues(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' }
+
+  const pad = (part) => String(part).padStart(2, '0')
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  }
+}
+
+function buildReminderScheduledAt(dateValue, timeValue) {
+  if (!dateValue || !timeValue) return null
+  const date = new Date(`${dateValue}T${timeValue}:00`)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+function reminderMutationMessage(operation, error) {
+  if (Number(error?.status) === 404) return '알림을 찾지 못했어요. 목록을 다시 확인해 주세요.'
+
+  const messages = {
+    create: '알림을 저장하지 못했어요. 다시 시도해 주세요.',
+    update: '알림을 변경하지 못했어요. 다시 시도해 주세요.',
+    cancel: '알림을 취소하지 못했어요. 다시 시도해 주세요.',
+  }
+  return messages[operation] || '알림 요청을 처리하지 못했어요. 다시 시도해 주세요.'
+}
+
+function resetReminderForm() {
+  reminderTitle.value = ''
+  reminderDate.value = ''
+  reminderTime.value = ''
+}
+
+function fillReminderForm(reminder) {
+  const inputValues = reminderInputValues(reminder?.scheduledAt)
+  reminderTitle.value = String(reminder?.title ?? '')
+  reminderDate.value = inputValues.date
+  reminderTime.value = inputValues.time
 }
 
 function isSelectedMobileBranch(branch) {
@@ -374,8 +478,42 @@ async function loadContext(currentService, currentScreenId) {
     if (['4-02', '4-03', '4-04'].includes(currentScreenId)) {
       await serviceData.loadAccounts({ active: true }).catch(() => {})
     }
-    if (['4-06', '4-07', '4-08', '4-17', '4-18'].includes(currentScreenId)) {
+    if (['4-06', '4-08', '4-17', '4-18'].includes(currentScreenId)) {
       await serviceData.loadReminders({ status: 'SCHEDULED' }).catch(() => {})
+
+      if (currentScreenId === '4-06') {
+        if (serviceData.errors.reminders) {
+          await go({ name: 'living-screen', params: { screenId: '4-18' } })
+          return { redirected: true }
+        }
+        if (!serviceData.reminders.length) {
+          await go({ name: 'living-screen', params: { screenId: '4-17' } })
+          return { redirected: true }
+        }
+      }
+
+      if (currentScreenId === '4-17' && !serviceData.errors.reminders) {
+        if (serviceData.reminders.length) {
+          await go({ name: 'living-screen', params: { screenId: '4-06' } })
+          return { redirected: true }
+        }
+      }
+
+      if (currentScreenId === '4-18' && !serviceData.errors.reminders) {
+        await go({
+          name: 'living-screen',
+          params: { screenId: serviceData.reminders.length ? '4-06' : '4-17' },
+        })
+        return { redirected: true }
+      }
+
+      if (currentScreenId === '4-08') {
+        if (serviceData.errors.reminders || !reminderTargetId.value || !selectedReminder.value) {
+          await go({ name: 'living-screen', params: { screenId: '4-06' } })
+          return { redirected: true }
+        }
+        fillReminderForm(selectedReminder.value)
+      }
     }
     if (currentScreenId === '4-10') await loadMobileBranchData()
   }
@@ -398,6 +536,8 @@ async function loadContext(currentService, currentScreenId) {
   ) {
     transferAmountInput.value = String(transferStore.draftAmount || transferStore.amount)
   }
+
+  return { redirected: false }
 }
 
 function mobileBranchLocationMessage(error) {
@@ -472,6 +612,8 @@ async function loadScreen() {
     loading.value = true
     screen.value = null
     actionError.value = ''
+    resetReminderForm()
+    showReminderCancelConfirm.value = false
     riskPurpose.value = ''
     transferPin.value = ''
 
@@ -495,7 +637,8 @@ async function loadScreen() {
 
     screen.value = nextScreen
     loading.value = false
-    await loadContext(service.value, screenId.value)
+    const context = await loadContext(service.value, screenId.value)
+    if (context?.redirected || sequence !== loadSequence) return
 
     if (sequence !== loadSequence || !isBillCameraScreen.value) return
 
@@ -633,11 +776,104 @@ function riskWarning(risk) {
   )
 }
 
+async function openReminder(reminder) {
+  const reminderId = reminderIdentifier(reminder)
+  if (!reminderId) {
+    actionError.value = '알림 정보를 확인할 수 없어요. 목록을 다시 불러와 주세요.'
+    return
+  }
+
+  await go({
+    name: 'living-screen',
+    params: { screenId: '4-08' },
+    query: { reminderId },
+  })
+}
+
+async function reloadReminders() {
+  if (serviceData.loading.reminders) return
+
+  actionError.value = ''
+  try {
+    await serviceData.loadReminders({ status: 'SCHEDULED' })
+    if (isReminderEmptyScreen.value || isReminderErrorScreen.value) {
+      await go({
+        name: 'living-screen',
+        params: { screenId: serviceData.reminders.length ? '4-06' : '4-17' },
+      })
+    }
+  } catch {
+    // The store keeps a concise user-facing error and the current screen stays visible.
+  }
+}
+
+function validateReminderForm() {
+  const title = reminderTitle.value.trim()
+  if (!title) return { error: '알림 제목을 입력해 주세요.' }
+  if (!reminderDate.value || !reminderTime.value) {
+    return { error: '날짜와 시간을 모두 선택해 주세요.' }
+  }
+
+  const scheduledAt = buildReminderScheduledAt(reminderDate.value, reminderTime.value)
+  if (!scheduledAt) return { error: '날짜와 시간을 다시 선택해 주세요.' }
+  if (new Date(scheduledAt).getTime() <= Date.now()) {
+    return { error: '현재 이후의 날짜와 시간을 선택해 주세요.' }
+  }
+
+  return { request: { title, scheduledAt } }
+}
+
+async function saveReminder() {
+  if (actionBusy.value || serviceData.loading.reminders) return
+
+  actionError.value = ''
+  const validation = validateReminderForm()
+  if (validation.error) {
+    actionError.value = validation.error
+    return
+  }
+
+  const operation = isReminderEditScreen.value ? 'update' : 'create'
+  actionBusy.value = true
+  try {
+    if (operation === 'update') {
+      await serviceData.updateReminder(reminderTargetId.value, validation.request)
+    } else {
+      await serviceData.createReminder(validation.request)
+    }
+    await go({ name: 'living-screen', params: { screenId: '4-06' } })
+  } catch (error) {
+    actionError.value = reminderMutationMessage(operation, error)
+  } finally {
+    actionBusy.value = false
+  }
+}
+
+async function confirmReminderCancel() {
+  if (actionBusy.value || !reminderTargetId.value) return
+
+  actionBusy.value = true
+  actionError.value = ''
+  try {
+    await serviceData.cancelReminder(reminderTargetId.value)
+    showReminderCancelConfirm.value = false
+    await go({ name: 'living-screen', params: { screenId: '4-06' } })
+  } catch (error) {
+    showReminderCancelConfirm.value = false
+    actionError.value = reminderMutationMessage('cancel', error)
+  } finally {
+    actionBusy.value = false
+  }
+}
+
 async function handlePrimary() {
   if (!screen.value || isBusy.value) return
   actionError.value = ''
 
   if (isMobileBranchListScreen.value && mobileBranchPrimaryDisabled.value) return
+
+  if (isReminderErrorScreen.value) return reloadReminders()
+  if (isReminderCreateScreen.value || isReminderEditScreen.value) return saveReminder()
 
   if (service.value === 'bills' && screenId.value === '3-02A') return captureBillFrame()
   if (service.value === 'bills' && screenId.value === '3-04' && billStore.billId) {
@@ -817,14 +1053,6 @@ async function handlePrimary() {
     await go({ name: 'living-screen', params: { screenId: '4-10' } })
     return
   }
-  if (service.value === 'living' && screenId.value === '4-07') {
-    const scheduledAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    await serviceData
-      .createReminder({ title: '전기요금 납부 알림', scheduledAt })
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
-    return
-  }
   return go(primaryRoute.value)
 }
 
@@ -834,6 +1062,10 @@ async function handleSecondary() {
 
   if (service.value === 'bills' && screenId.value === '3-02A') return uploadBill('gallery')
   if (service.value === 'bills' && screenId.value === '3-03') billStore.reset()
+  if (isReminderEditScreen.value) {
+    showReminderCancelConfirm.value = true
+    return
+  }
   return go(secondaryRoute.value)
 }
 
@@ -845,6 +1077,12 @@ function openVoice() {
 function goBack() {
   return goBackOrReplace(router, backRoute.value)
 }
+
+watch(showReminderCancelConfirm, async (visible) => {
+  if (!visible) return
+  await nextTick()
+  reminderCancelDialog.value?.focus()
+})
 
 /** 서비스를 완전히 벗어날 때만 세션을 닫는다. 같은 서비스 안의 화면 이동은 유지한다. */
 onBeforeRouteLeave((to) => {
@@ -858,7 +1096,7 @@ onBeforeRouteLeave((to) => {
   voiceStore.transcript = ''
 })
 
-watch([service, screenId], loadScreen, { immediate: true })
+watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
 
 onBeforeUnmount(cleanupBillCamera)
 
@@ -1029,6 +1267,7 @@ onMounted(() => {
             !isBillSourceSelection &&
             !isBillCameraScreen &&
             !isMobileBranchScreen &&
+            !isReminderScreen &&
             !showVoiceControl &&
             !showTransferFlow
           "
@@ -1192,6 +1431,228 @@ onMounted(() => {
             </article>
           </div>
         </section>
+
+        <section
+          v-if="screen && isReminderListScreen"
+          aria-label="리마인더 목록"
+          class="service-route-screen-content screen-content reminder-list-content"
+          :data-variant="screen.variant"
+        >
+          <div class="content">
+            <div
+              v-if="serviceData.loading.reminders"
+              aria-live="polite"
+              class="reminder-state"
+              role="status"
+            >
+              <strong>리마인더를 불러오고 있어요</strong>
+              <p>잠시만 기다려 주세요.</p>
+            </div>
+            <div
+              v-else-if="serviceData.errors.reminders"
+              class="reminder-state reminder-state-error"
+              role="alert"
+            >
+              <strong>리마인더를 불러오지 못했어요</strong>
+              <p>잠시 후 다시 시도해 주세요.</p>
+              <Button
+                :disabled="isBusy"
+                variant="secondary"
+                @click="reloadReminders"
+              >
+                다시 불러오기
+              </Button>
+            </div>
+            <p
+              v-else-if="!serviceData.reminders.length"
+              class="reminder-state"
+            >
+              등록된 리마인더가 없어요. 아래 버튼으로 새 알림을 만들어 보세요.
+            </p>
+            <div
+              v-else
+              class="reminder-list"
+            >
+              <Button
+                v-for="reminder in serviceData.reminders"
+                :key="reminderIdentifier(reminder)"
+                :aria-label="`${reminder.title || '리마인더'} ${formatReminderDateTime(reminder.scheduledAt)} ${reminderStatusLabel(reminder.status)} 수정 또는 취소`"
+                :disabled="isBusy || !reminderIdentifier(reminder)"
+                class="reminder-list-item"
+                variant="secondary"
+                @click="openReminder(reminder)"
+              >
+                <span class="reminder-list-copy">
+                  <strong>{{ reminder.title || '제목 없는 리마인더' }}</strong>
+                  <span>{{ formatReminderDateTime(reminder.scheduledAt) }}</span>
+                </span>
+                <span class="reminder-list-status">
+                  {{ reminderStatusLabel(reminder.status) }}
+                </span>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="screen && isReminderEmptyScreen"
+          aria-label="리마인더 없음"
+          class="service-route-screen-content screen-content reminder-state-content"
+          :data-variant="screen.variant"
+        >
+          <div class="content">
+            <div
+              v-if="serviceData.loading.reminders"
+              aria-live="polite"
+              class="reminder-state"
+              role="status"
+            >
+              <strong>리마인더를 확인하고 있어요</strong>
+              <p>잠시만 기다려 주세요.</p>
+            </div>
+            <div
+              v-else-if="serviceData.errors.reminders"
+              class="reminder-state reminder-state-error"
+              role="alert"
+            >
+              <strong>리마인더를 불러오지 못했어요</strong>
+              <p>잠시 후 다시 시도해 주세요.</p>
+              <Button
+                :disabled="isBusy"
+                variant="secondary"
+                @click="reloadReminders"
+              >
+                다시 불러오기
+              </Button>
+            </div>
+            <div
+              v-else
+              class="reminder-state"
+            >
+              <strong>등록된 리마인더가 없어요</strong>
+              <p>납부일이나 중요한 일정을 놓치지 않도록 알림을 만들어 보세요.</p>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="screen && isReminderErrorScreen"
+          aria-label="리마인더 조회 오류"
+          class="service-route-screen-content screen-content reminder-state-content"
+          :data-variant="screen.variant"
+        >
+          <div class="content">
+            <div
+              v-if="serviceData.loading.reminders"
+              aria-live="polite"
+              class="reminder-state"
+              role="status"
+            >
+              <strong>리마인더를 다시 확인하고 있어요</strong>
+              <p>잠시만 기다려 주세요.</p>
+            </div>
+            <div
+              v-else
+              class="reminder-state reminder-state-error"
+              role="alert"
+            >
+              <strong>리마인더를 불러오지 못했어요</strong>
+              <p>통신 상태를 확인한 뒤 다시 시도해 주세요.</p>
+              <Button
+                :disabled="isBusy"
+                variant="secondary"
+                @click="reloadReminders"
+              >
+                다시 불러오기
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="screen && isReminderFormScreen"
+          aria-label="리마인더 입력"
+          class="service-route-screen-content screen-content reminder-form-content"
+          :data-variant="screen.variant"
+        >
+          <form
+            class="content reminder-form"
+            @submit.prevent="handlePrimary"
+          >
+            <label class="service-route-input-field">
+              <span>알림 제목</span>
+              <input
+                v-model="reminderTitle"
+                autocomplete="off"
+                maxlength="100"
+                placeholder="예: 병원 예약"
+                required
+                type="text"
+                @input="actionError = ''"
+              />
+            </label>
+            <label class="service-route-input-field">
+              <span>날짜</span>
+              <input
+                v-model="reminderDate"
+                :min="reminderMinDate"
+                required
+                type="date"
+                @input="actionError = ''"
+              />
+            </label>
+            <label class="service-route-input-field">
+              <span>시간</span>
+              <input
+                v-model="reminderTime"
+                required
+                step="60"
+                type="time"
+                @input="actionError = ''"
+              />
+            </label>
+            <p
+              aria-live="polite"
+              class="reminder-form-hint"
+            >
+              현재보다 이후인 날짜와 시간을 선택해 주세요.
+            </p>
+          </form>
+        </section>
+
+        <div
+          v-if="showReminderCancelConfirm && isReminderEditScreen"
+          ref="reminderCancelDialog"
+          aria-describedby="reminder-cancel-description"
+          aria-labelledby="reminder-cancel-title"
+          aria-modal="true"
+          class="reminder-cancel-dialog"
+          role="dialog"
+          tabindex="-1"
+          @keydown.esc.stop="showReminderCancelConfirm = false"
+        >
+          <div class="reminder-cancel-dialog-card">
+            <h2 id="reminder-cancel-title">알림을 취소할까요?</h2>
+            <p id="reminder-cancel-description">
+              {{ selectedReminder?.title || '이 알림' }}을 취소하면 목록에서 사라져요.
+            </p>
+            <div class="reminder-cancel-actions">
+              <Button
+                ref="reminderCancelButton"
+                variant="secondary"
+                @click="showReminderCancelConfirm = false"
+              >
+                취소하지 않기
+              </Button>
+              <Button
+                variant="destructive"
+                @click="confirmReminderCancel"
+              >
+                알림 취소
+              </Button>
+            </div>
+          </div>
+        </div>
 
         <label
           v-if="showRecipientSearch"
