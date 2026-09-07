@@ -204,24 +204,28 @@ function startVoiceAssist() {
         class="app-bottom-nav four-items service-bottom-nav"
       >
         <RouterLink
+          replace
           :aria-current="route.name === 'transfer-home' ? 'page' : undefined"
           :to="{ name: 'transfer-home' }"
         >
           홈
         </RouterLink>
         <RouterLink
+          replace
           :aria-current="route.name === 'bills-home' ? 'page' : undefined"
           :to="{ name: 'bills-home' }"
         >
           고지서
         </RouterLink>
         <RouterLink
+          replace
           :aria-current="route.name === 'living-home' ? 'page' : undefined"
           :to="{ name: 'living-home' }"
         >
           생활금융
         </RouterLink>
         <RouterLink
+          replace
           :aria-current="route.name === 'my-page' ? 'page' : undefined"
           :to="{ name: 'my-page' }"
         >

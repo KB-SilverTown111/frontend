@@ -61,6 +61,7 @@
 }
 
 .app-main {
+  position: relative;
   min-height: 0;
   flex: 1;
   overflow-y: auto;
@@ -429,7 +430,7 @@
 .postcode-overlay {
   position: absolute;
   z-index: 20;
-  inset: 0;
+  inset: 0 0 var(--app-safe-area-bottom);
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr);
   background: var(--card);

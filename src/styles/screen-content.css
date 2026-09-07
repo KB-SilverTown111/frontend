@@ -534,3 +534,179 @@
   font-weight: 500;
   text-align: center;
 }
+
+.mobile-branch-content {
+  gap: 12px;
+}
+
+.mobile-branch-list {
+  display: grid;
+  gap: 12px;
+}
+
+.mobile-branch-card {
+  overflow: hidden;
+  border: 2px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--card);
+  box-shadow: 0 5px 14px rgb(23 63 82 / 6%);
+}
+
+.mobile-branch-card.is-selected {
+  border-color: var(--primary);
+  background: var(--muted);
+}
+
+.mobile-branch-card:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ring) 42%, transparent);
+}
+
+.mobile-branch-select {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: var(--touch-target-min);
+  padding: 12px 18px;
+  border: 0;
+  border-bottom: 2px solid color-mix(in srgb, var(--border) 74%, transparent);
+  background: color-mix(in srgb, var(--muted) 52%, var(--card));
+  color: var(--foreground);
+  font-size: 17px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-branch-card.is-selected .mobile-branch-select {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.mobile-branch-select:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--ring);
+}
+
+.mobile-branch-select-indicator {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.mobile-branch-card-body {
+  width: 100%;
+  display: block;
+  padding: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+}
+
+.mobile-branch-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-branch-card-header strong {
+  font-size: 21px;
+  line-height: 1.32;
+  font-weight: 800;
+}
+
+.mobile-branch-card-header span {
+  flex: 0 0 auto;
+  color: var(--primary-foreground);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.mobile-branch-address {
+  margin: 7px 0 0;
+  color: var(--muted-foreground);
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.mobile-branch-details {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 2px solid color-mix(in srgb, var(--border) 74%, transparent);
+}
+
+.mobile-branch-details > div {
+  display: grid;
+  gap: 5px;
+}
+
+.mobile-branch-details dt {
+  color: var(--muted-foreground);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.mobile-branch-details dd {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 18px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.mobile-branch-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mobile-branch-tags li {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--primary-foreground);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.mobile-branch-state {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 22px 18px;
+  border: 2px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--card);
+}
+
+.mobile-branch-state strong {
+  font-size: 21px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.mobile-branch-state p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.mobile-branch-state-error {
+  border-color: color-mix(in srgb, var(--destructive) 42%, white);
+  background: color-mix(in srgb, var(--destructive) 9%, white);
+}

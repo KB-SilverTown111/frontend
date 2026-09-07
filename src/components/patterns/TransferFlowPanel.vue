@@ -26,11 +26,18 @@ const showAccounts = computed(() => ACCOUNT_SCREENS.includes(props.screenId))
 const showAmount = computed(() => AMOUNT_SCREENS.includes(props.screenId))
 const showConfirm = computed(() => CONFIRM_SCREENS.includes(props.screenId))
 const showResult = computed(() => RESULT_SCREENS.includes(props.screenId))
+const showFailure = computed(() => props.screenId === '2-23')
 
 const accounts = computed(() => serviceData.accounts ?? [])
 const candidates = computed(() => transferStore.candidates ?? [])
 const prepared = computed(() => transferStore.prepared)
 const result = computed(() => transferStore.result)
+const failureMessage = computed(
+  () =>
+    transferStore.error?.message ||
+    result.value?.message ||
+    '은행에서 처리하지 못했어요. 돈은 그대로 있으니 안심하세요.',
+)
 
 const amountText = computed({
   get: () => (transferStore.draftAmount ? String(transferStore.draftAmount) : ''),
@@ -215,7 +222,23 @@ onMounted(() => {
       v-if="showResult"
       class="flex flex-col gap-3 rounded-2xl border p-5"
     >
-      <template v-if="result">
+      <template v-if="showFailure">
+        <div
+          class="flex flex-col gap-2"
+          role="alert"
+        >
+          <strong class="text-xl">송금을 처리하지 못했어요</strong>
+          <p class="text-lg leading-relaxed">{{ failureMessage }}</p>
+        </div>
+        <div
+          v-if="result?.amount ?? transferStore.amount"
+          class="flex items-baseline justify-between gap-3 text-xl"
+        >
+          <span>보내려던 금액</span>
+          <b>{{ formatAmount(result?.amount ?? transferStore.amount) }}</b>
+        </div>
+      </template>
+      <template v-else-if="result">
         <div class="flex items-baseline justify-between gap-3 text-2xl">
           <span>보낸 금액</span>
           <b>{{ formatAmount(result.amount) }}</b>
@@ -234,7 +257,7 @@ onMounted(() => {
     </div>
 
     <p
-      v-if="transferStore.error"
+      v-if="transferStore.error && !showFailure"
       class="text-[15px] leading-relaxed text-destructive"
       role="alert"
     >

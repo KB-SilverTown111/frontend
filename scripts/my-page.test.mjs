@@ -22,11 +22,15 @@ const transferStyleSource = readSource('../src/styles/transfer.css')
 test('my page has a production route and view', () => {
   const myPageRoute = routes.find(({ name }) => name === 'my-page')
   const fontSizeRoute = routes.find(({ name }) => name === 'my-page-font-size')
+  const voiceSettingsRoute = routes.find(({ name }) => name === 'my-page-voice')
 
   assert.equal(myPageRoute?.path, '/mypage')
   assert.equal(typeof myPageRoute?.component, 'function')
   assert.equal(fontSizeRoute?.path, '/mypage/font-size')
   assert.equal(typeof fontSizeRoute?.component, 'function')
+  assert.equal(voiceSettingsRoute?.path, '/mypage/voice/:screenId')
+  assert.equal(voiceSettingsRoute?.meta?.myPageVoice, true)
+  assert.equal(typeof voiceSettingsRoute?.beforeEnter, 'function')
   assert.match(myPageSource, /마이페이지/)
 })
 
@@ -42,6 +46,12 @@ test('my page exposes cards and moves font size controls to a detail screen', ()
   assert.match(fontSizeSource, /기본 크기/)
   assert.match(fontSizeSource, /큰 글씨/)
   assert.match(fontSizeSource, /my-page/)
+})
+
+test('my page exposes the voice change card as the only settings entry point', () => {
+  assert.match(myPageSource, /목소리 변경/)
+  assert.match(myPageSource, /name: 'my-page-voice'/)
+  assert.match(myPageSource, /screenId: '5-01'/)
 })
 
 test('font size detail screen returns to the correct entry flow', () => {

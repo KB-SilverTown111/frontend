@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 
 import { accountsApi } from '../api/accounts.js'
 import { billsApi } from '../api/bills.js'
+import { mobileBranchesApi } from '../api/mobileBranches.js'
 import { remindersApi } from '../api/reminders.js'
 import { normalizeApiError } from '../api/errors.js'
 
@@ -11,17 +12,20 @@ export const useServiceDataStore = defineStore('service-data', () => {
   const bills = ref([])
   const monthlySummary = ref(null)
   const reminders = ref([])
+  const mobileBranches = ref([])
   const loading = reactive({
     accounts: false,
     bills: false,
     monthlySummary: false,
     reminders: false,
+    mobileBranches: false,
   })
   const errors = reactive({
     accounts: null,
     bills: null,
     monthlySummary: null,
     reminders: null,
+    mobileBranches: null,
   })
   let resetVersion = 0
 
@@ -89,6 +93,30 @@ export const useServiceDataStore = defineStore('service-data', () => {
     )
   }
 
+  function loadMobileBranches(params) {
+    return loadResource(
+      'mobileBranches',
+      () => mobileBranchesApi.nearby(params),
+      (value) => {
+        mobileBranches.value = responseItems(value)
+          .slice()
+          .sort((left, right) => {
+            return mobileBranchDistanceRank(left) - mobileBranchDistanceRank(right)
+          })
+      },
+    )
+  }
+
+  function mobileBranchDistanceRank(branch) {
+    const rawDistance = branch?.distanceMeters
+    if (rawDistance == null || (typeof rawDistance === 'string' && !rawDistance.trim())) {
+      return Number.POSITIVE_INFINITY
+    }
+
+    const distance = Number(rawDistance)
+    return Number.isFinite(distance) && distance >= 0 ? distance : Number.POSITIVE_INFINITY
+  }
+
   async function createReminder(request, options) {
     return runResource(
       'reminders',
@@ -105,17 +133,20 @@ export const useServiceDataStore = defineStore('service-data', () => {
     bills.value = []
     monthlySummary.value = null
     reminders.value = []
+    mobileBranches.value = []
     Object.assign(loading, {
       accounts: false,
       bills: false,
       monthlySummary: false,
       reminders: false,
+      mobileBranches: false,
     })
     Object.assign(errors, {
       accounts: null,
       bills: null,
       monthlySummary: null,
       reminders: null,
+      mobileBranches: null,
     })
   }
 
@@ -124,12 +155,14 @@ export const useServiceDataStore = defineStore('service-data', () => {
     bills,
     monthlySummary,
     reminders,
+    mobileBranches,
     loading,
     errors,
     loadAccounts,
     loadBills,
     loadMonthlySummary,
     loadReminders,
+    loadMobileBranches,
     createReminder,
     reset,
   }

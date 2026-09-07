@@ -1,4 +1,7 @@
-import { resolveProductionScreen } from '../services/productionServiceScreens.js'
+import {
+  isVoiceSettingsScreen,
+  resolveProductionScreen,
+} from '../services/productionServiceScreens.js'
 
 function createProductionServiceRoute(service) {
   return {
@@ -8,11 +11,39 @@ function createProductionServiceRoute(service) {
     props: true,
     meta: { service },
     beforeEnter: (to) => {
+      if (service === 'living' && String(to.params.screenId) === '4-13') {
+        return { name: 'my-page' }
+      }
+
+      if (service === 'voice' && isVoiceSettingsScreen(String(to.params.screenId))) {
+        return { name: 'my-page' }
+      }
+
       if (resolveProductionScreen(service, String(to.params.screenId))) return true
 
       return {
         name: service === 'voice' ? 'voice-home' : `${service}-home`,
       }
+    },
+  }
+}
+
+function createMyPageVoiceRoute() {
+  return {
+    path: '/mypage/voice/:screenId',
+    name: 'my-page-voice',
+    component: () => import('@/views/ServiceRouteView.vue'),
+    props: true,
+    meta: { service: 'voice', myPageVoice: true },
+    beforeEnter: (to) => {
+      if (
+        isVoiceSettingsScreen(String(to.params.screenId)) &&
+        resolveProductionScreen('voice', String(to.params.screenId))
+      ) {
+        return true
+      }
+
+      return { name: 'my-page' }
     },
   }
 }
@@ -66,10 +97,11 @@ export const routes = [
     name: 'my-page-font-size',
     component: () => import('@/views/MyPageFontSizeView.vue'),
   },
+  createMyPageVoiceRoute(),
   {
     path: '/voice',
     name: 'voice-home',
-    redirect: { name: 'voice-screen', params: { screenId: '5-01' } },
+    redirect: { name: 'my-page' },
   },
   createProductionServiceRoute('transfer'),
   createProductionServiceRoute('bills'),

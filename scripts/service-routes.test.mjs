@@ -9,6 +9,11 @@ import {
   productionServiceScreens,
   resolveProductionScreen,
 } from '../src/services/productionServiceScreens.js'
+import {
+  mobileBranchSchedule,
+  mobileBranchDocuments,
+  mobileBranchServices,
+} from '../src/services/mobileBranchPresentation.js'
 
 const serviceHomeSource = readFileSync(
   new URL('../src/views/ServiceHomeView.vue', import.meta.url),
@@ -20,6 +25,14 @@ const transferHomeSource = readFileSync(
 )
 const routeViewSource = readFileSync(
   new URL('../src/views/ServiceRouteView.vue', import.meta.url),
+  'utf8',
+)
+const transferFlowPanelSource = readFileSync(
+  new URL('../src/components/patterns/TransferFlowPanel.vue', import.meta.url),
+  'utf8',
+)
+const mobileBranchPresentationSource = readFileSync(
+  new URL('../src/services/mobileBranchPresentation.js', import.meta.url),
   'utf8',
 )
 const serviceStyleSource = readFileSync(
@@ -81,13 +94,58 @@ test('production action routes follow the service flow instead of raw screen ord
     params: { stepId: 'login' },
   })
   assert.deepEqual(getProductionActionRoutes('living', '4-13').primary, {
-    name: 'voice-screen',
+    name: 'my-page',
+  })
+  assert.deepEqual(getProductionActionRoutes('living', '4-22').primary, {
+    name: 'my-page',
+  })
+  assert.deepEqual(getProductionActionRoutes('voice', '5-01').primary, {
+    name: 'my-page-voice',
     params: { screenId: '5-02' },
+  })
+  assert.deepEqual(getProductionActionRoutes('voice', '5-02').primary, {
+    name: 'my-page',
   })
   assert.deepEqual(getProductionActionRoutes('voice', '5-08').primary, {
     name: 'transfer-screen',
     params: { screenId: '2-02' },
   })
+})
+
+test('voice selection screens reject legacy routes and allow only the my page flow', () => {
+  const voiceRoute = routes.find(({ name }) => name === 'voice-screen')
+  const livingRoute = routes.find(({ name }) => name === 'living-screen')
+  const myPageVoiceRoute = routes.find(({ name }) => name === 'my-page-voice')
+
+  assert.deepEqual(
+    voiceRoute?.beforeEnter?.(
+      { params: { screenId: '5-01' } },
+      { name: 'living-screen', params: { screenId: '4-13' } },
+    ),
+    { name: 'my-page' },
+  )
+  assert.deepEqual(
+    livingRoute?.beforeEnter?.({ params: { screenId: '4-13' } }, { name: 'living-home' }),
+    { name: 'my-page' },
+  )
+  assert.deepEqual(
+    voiceRoute?.beforeEnter?.(
+      { params: { screenId: '5-02' } },
+      { name: 'voice-screen', params: { screenId: '5-01' } },
+    ),
+    { name: 'my-page' },
+  )
+  assert.equal(
+    myPageVoiceRoute?.beforeEnter?.({ params: { screenId: '5-01' } }, { name: 'my-page' }),
+    true,
+  )
+  assert.equal(
+    myPageVoiceRoute?.beforeEnter?.(
+      { params: { screenId: '5-02' } },
+      { name: 'my-page-voice', params: { screenId: '5-01' } },
+    ),
+    true,
+  )
 })
 
 test('home actions point to production detail routes', () => {
@@ -232,6 +290,20 @@ test('transfer risk clearance skips rescoring after a safe risk check', () => {
   assert.match(routeViewSource, /추가 확인이 필요해 송금을 진행할 수 없어요\./)
 })
 
+test('transfer failure screen renders runtime failure details instead of an empty result state', () => {
+  assert.match(
+    transferFlowPanelSource,
+    /const showFailure = computed\(\(\) => props\.screenId === '2-23'\)/,
+  )
+  assert.match(transferFlowPanelSource, /transferStore\.error\?\.message/)
+  assert.match(transferFlowPanelSource, /transferStore\.amount/)
+  assert.match(transferFlowPanelSource, /송금을 처리하지 못했어요/)
+})
+
+test('transfer failure screen does not repeat the same error announcement', () => {
+  assert.match(transferFlowPanelSource, /v-if="transferStore\.error && !showFailure"/)
+})
+
 test('bill home reads the backend monthly totalCount field before legacy fallbacks', () => {
   assert.match(serviceHomeSource, /monthlySummary\.totalCount \?\? monthlySummary\.billCount/)
 })
@@ -307,4 +379,72 @@ test('production supporting text stays readable beside the large action labels',
     serviceStyleSource,
     /\.service-route-error,[\s\S]*?\.service-home-data-error\s*\{[\s\S]*?font-size:\s*16px;/,
   )
+})
+
+test('mobile branch screen loads nearby data, renders card fields, and guards direct detail entry', () => {
+  assert.match(routeViewSource, /getCurrentLocation/)
+  assert.match(routeViewSource, /loadMobileBranches/)
+  assert.match(routeViewSource, /mobileBranches/)
+  assert.match(routeViewSource, /mobileBranchServices/)
+  assert.match(routeViewSource, /mobileBranchDocuments/)
+  assert.match(routeViewSource, /mobileBranchDistance/)
+  assert.match(mobileBranchPresentationSource, /availableServices/)
+  assert.match(mobileBranchPresentationSource, /requiredDocuments/)
+  assert.match(mobileBranchPresentationSource, /distanceMeters/)
+  assert.match(mobileBranchPresentationSource, /visitTime/)
+  assert.match(routeViewSource, /mobileBranchLocationLoading/)
+  assert.match(routeViewSource, /mobileBranchPrimaryDisabled/)
+  assert.match(routeViewSource, /:disabled="isBusy \|\| mobileBranchPrimaryDisabled"/)
+  const loadScreenSource = routeViewSource.slice(
+    routeViewSource.indexOf('async function loadScreen()'),
+    routeViewSource.indexOf('async function go('),
+  )
+
+  assert.match(
+    loadScreenSource,
+    /service\.value === 'living'[\s\S]*?screenId\.value === '4-11'[\s\S]*?!serviceData\.mobileBranches\.length[\s\S]*?await go\(\{\s*name: 'living-screen',\s*params: \{ screenId: '4-10' \} \}\)[\s\S]*?screen\.value = nextScreen/,
+  )
+})
+
+test('mobile branch presentation renders the three agreed MVP data shapes', () => {
+  const branches = [
+    {
+      branchId: 'mobile-1',
+      name: 'KB 이동점포 강남 데모 1호',
+      address: '서울특별시 강남구 테헤란로 152',
+      visitDate: '2026-09-08',
+      visitTime: '10:00~16:00',
+      availableServices: ['입출금·통장 업무', '금융 상담'],
+      requiredDocuments: ['신분증'],
+    },
+    {
+      branchId: 'mobile-2',
+      name: 'KB 이동점포 송파 데모 2호',
+      address: '서울특별시 송파구 올림픽로 300',
+      visitDate: '2026-09-09',
+      visitTime: '10:00~16:00',
+      availableServices: ['계좌 조회·통장 업무', '카드 관련 상담'],
+      requiredDocuments: ['신분증'],
+    },
+    {
+      branchId: 'mobile-3',
+      name: 'KB 이동점포 마포 데모 3호',
+      address: '서울특별시 마포구 월드컵로 240',
+      visitDate: '2026-09-10',
+      visitTime: '10:00~16:00',
+      availableServices: ['금융 상담', '대출 상담'],
+      requiredDocuments: ['신분증', '상담 관련 서류'],
+    },
+  ]
+
+  assert.match(mobileBranchSchedule(branches[0]), /9월 8일/)
+  assert.match(mobileBranchSchedule(branches[0]), /10:00~16:00/)
+  assert.match(mobileBranchSchedule(branches[1]), /9월 9일/)
+  assert.match(mobileBranchSchedule(branches[2]), /9월 10일/)
+  assert.deepEqual(mobileBranchServices(branches[0]), ['입출금·통장 업무', '금융 상담'])
+  assert.deepEqual(mobileBranchServices(branches[1]), ['계좌 조회·통장 업무', '카드 관련 상담'])
+  assert.deepEqual(mobileBranchServices(branches[2]), ['금융 상담', '대출 상담'])
+  assert.deepEqual(mobileBranchDocuments(branches[0]), ['신분증'])
+  assert.deepEqual(mobileBranchDocuments(branches[1]), ['신분증'])
+  assert.deepEqual(mobileBranchDocuments(branches[2]), ['신분증', '상담 관련 서류'])
 })
