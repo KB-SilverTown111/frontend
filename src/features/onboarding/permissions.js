@@ -5,6 +5,12 @@ export const NATIVE_PERMISSION_ORDER = Object.freeze([
   'microphone',
 ])
 
+export function arePermissionsGranted(permissions = {}) {
+  return NATIVE_PERMISSION_ORDER.every((permission) =>
+    ['granted', 'limited'].includes(permissions[permission]),
+  )
+}
+
 export async function requestPermissionsInOrder(requesters = {}) {
   const failures = []
 
