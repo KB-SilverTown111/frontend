@@ -15,10 +15,10 @@ export default [
   {
     id: '3-02',
     number: '3-02',
-    title: '촬영 또는 파일',
+    title: '촬영 또는 앨범에서 선택',
     description: '카메라와 앨범 중 하나를 선택합니다.',
     contentHtml:
-      '<section class="hero "><div class="hero-icon">✓</div><div><strong>고지서를 화면 안에 맞춰 주세요</strong><p>빛 반사를 피하면 더 정확해요.</p></div></section><div class="choices"><div class="choice active"><span>카메라 촬영</span><i>✓</i></div><div class="choice "><span>파일 선택</span><i></i></div></div><div class="note"><b>안내</b><span>명세에 없는 플래시 토글은 제외했습니다.</span></div>',
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>고지서를 화면 안에 맞춰 주세요</strong><p>빛 반사를 피하면 더 정확해요.</p></div></section><div class="choices"><div class="choice active"><span>카메라 촬영</span><i>✓</i></div><div class="choice "><span>앨범에서 선택</span><i></i></div></div><div class="note"><b>안내</b><span>명세에 없는 플래시 토글은 제외했습니다.</span></div>',
     primaryLabel: '촬영',
     secondaryLabel: '',
     variant: 'default',
@@ -33,7 +33,6 @@ export default [
     contentHtml:
       '<div class="viewfinder"><div class="vf-doc"></div><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div><div class="vf-hint">테두리가 초록색이 되면 찍어 주세요</div></div><div class="note"><b>안내</b><span>빛 반사를 피하면 더 정확해요.</span></div>',
     primaryLabel: '촬영',
-    secondaryLabel: '앨범에서 고르기',
     variant: 'default',
     showHelp: true,
     showTabs: false,
