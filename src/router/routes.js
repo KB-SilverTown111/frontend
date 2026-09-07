@@ -67,6 +67,11 @@ export const routes = [
     component: () => import('@/views/MyPageFontSizeView.vue'),
   },
   {
+    path: '/mypage/transfer-pin',
+    name: 'transfer-pin',
+    component: () => import('@/views/TransferPinView.vue'),
+  },
+  {
     path: '/voice',
     name: 'voice-home',
     redirect: { name: 'voice-screen', params: { screenId: '5-01' } },

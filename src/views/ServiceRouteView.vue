@@ -79,6 +79,11 @@ const TRANSFER_FLOW_SCREENS = ['2-05', '2-07', '2-08', '2-14', '2-17', '2-18', '
 const showTransferFlow = computed(
   () => service.value === 'transfer' && TRANSFER_FLOW_SCREENS.includes(screenId.value),
 )
+/** PIN을 아직 정하지 않아 2-11 인증이 막힌 사용자에게 등록 화면 경로를 준다. */
+const TRANSFER_PIN_HELP_SCREENS = ['2-11', '2-13']
+const showTransferPinHelp = computed(
+  () => service.value === 'transfer' && TRANSFER_PIN_HELP_SCREENS.includes(screenId.value),
+)
 const showRecipientSearch = computed(
   () => service.value === 'transfer' && ['2-05', '2-16'].includes(screenId.value),
 )
@@ -899,6 +904,14 @@ onMounted(() => {
             type="password"
           />
         </label>
+
+        <RouterLink
+          v-if="showTransferPinHelp"
+          class="service-route-pin-link"
+          :to="{ name: 'transfer-pin', query: { from: 'transfer' } }"
+        >
+          비밀번호를 아직 정하지 않으셨나요? 비밀번호 만들기
+        </RouterLink>
 
         <TransferFlowPanel
           v-if="showTransferFlow"

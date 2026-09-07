@@ -68,6 +68,17 @@ async function handleLogout() {
             </span>
             <b aria-hidden="true">›</b>
           </RouterLink>
+          <RouterLink
+            aria-label="거래 승인 비밀번호 설정 열기"
+            class="my-page-card"
+            :to="{ name: 'transfer-pin' }"
+          >
+            <span>
+              <strong>거래 승인 비밀번호</strong>
+              <small>송금할 때 쓰는 숫자 6자리를 정합니다.</small>
+            </span>
+            <b aria-hidden="true">›</b>
+          </RouterLink>
           <button
             :aria-busy="isLoggingOut"
             :aria-label="isLoggingOut ? '로그아웃 중' : '로그아웃'"

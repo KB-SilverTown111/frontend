@@ -200,6 +200,13 @@ export const useTransferStore = defineStore('transfer', () => {
     return response
   }
 
+  /** 거래 승인 PIN 등록·변경. 입력값은 요청에만 쓰고 상태에 남기지 않는다. */
+  async function registerPin(pin) {
+    const value = String(pin ?? '')
+    if (!/^\d{6}$/.test(value)) throw new Error('PIN 6자리를 숫자로 입력해 주세요.')
+    return run(() => transfersApi.setPin({ pin: value }))
+  }
+
   function localError(code, message) {
     return normalizeApiError({ response: { data: { code, message } } })
   }
@@ -326,6 +333,7 @@ export const useTransferStore = defineStore('transfer', () => {
     load,
     confirm,
     authenticate,
+    registerPin,
     execute,
     cancel,
     assessRisk,
