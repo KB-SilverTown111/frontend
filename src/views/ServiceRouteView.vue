@@ -15,6 +15,7 @@ import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
 import { useVoiceStore } from '@/stores/voice.js'
+import TransferFlowPanel from '@/components/patterns/TransferFlowPanel.vue'
 import VoiceConversationPanel from '@/components/patterns/VoiceConversationPanel.vue'
 
 const route = useRoute()
@@ -32,7 +33,9 @@ const actionBusy = ref(false)
 const actionError = ref('')
 const riskPurpose = ref('')
 const transferPin = ref('')
-const recipientKeyword = ref('')
+const recipientSearch = ref('')
+// Keep the legacy name for the hidden fallback input and existing route contracts.
+const recipientKeyword = recipientSearch
 const transferAmountInput = ref('')
 let loadSequence = 0
 
@@ -59,6 +62,13 @@ const showVoiceControl = computed(() =>
  * 나머지 음성 화면은 취소·다시 말하기 같은 이동 경로가 화면 버튼에만 있으므로 유지한다.
  */
 const hideScreenActions = computed(() => service.value === 'transfer' && screenId.value === '2-02')
+const TRANSFER_FLOW_SCREENS = ['2-05', '2-07', '2-08', '2-14', '2-17', '2-18', '2-23']
+const showTransferFlow = computed(
+  () => service.value === 'transfer' && TRANSFER_FLOW_SCREENS.includes(screenId.value),
+)
+const showRecipientSearch = computed(
+  () => service.value === 'transfer' && ['2-05', '2-16'].includes(screenId.value),
+)
 const liveKind = computed(() => {
   if (service.value === 'living') {
     if (['4-02', '4-03', '4-04'].includes(screenId.value)) return 'accounts'
@@ -190,7 +200,7 @@ async function loadContext(currentService, currentScreenId) {
     }
   }
 
-  if (currentService === 'transfer' && currentScreenId === '2-18') {
+  if (currentService === 'transfer' && ['2-08', '2-18'].includes(currentScreenId)) {
     await serviceData.loadAccounts({ active: true }).catch(() => {})
   }
 
@@ -204,9 +214,9 @@ async function loadContext(currentService, currentScreenId) {
     currentService === 'transfer' &&
     currentScreenId === '2-07' &&
     !transferAmountInput.value &&
-    transferStore.amount
+    (transferStore.draftAmount || transferStore.amount)
   ) {
-    transferAmountInput.value = String(transferStore.amount)
+    transferAmountInput.value = String(transferStore.draftAmount || transferStore.amount)
   }
 }
 
@@ -272,7 +282,8 @@ async function uploadBill(source) {
 }
 
 async function loadRecipients() {
-  const keyword = recipientKeyword.value.trim()
+  const spoken = voiceStore.transcript.split(/에게|한테|으로|에/)[0].trim()
+  const keyword = spoken || recipientKeyword.value.trim()
   if (!keyword) {
     actionError.value = '받는 분 이름을 입력해 주세요.'
     return
@@ -282,12 +293,9 @@ async function loadRecipients() {
   actionError.value = ''
   try {
     const contacts = await getContactCandidates().catch(() => [])
-    await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
-    if (!transferStore.recipientCandidates.length) {
+    const found = await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
+    if (!found.length) {
       throw new Error('받는 분을 찾지 못했어요. 이름이나 계좌 정보를 다시 확인해 주세요.')
-    }
-    if (transferStore.recipient) {
-      await go({ name: 'transfer-screen', params: { screenId: '2-18' } })
     }
   } catch (error) {
     actionError.value = error?.message || '연락처를 불러오지 못했어요. 직접 검색해 주세요.'
@@ -368,23 +376,23 @@ async function handlePrimary() {
       .catch((error) => (actionError.value = error.message))
     return
   }
-  if (service.value === 'transfer' && screenId.value === '2-05') {
-    if (!transferStore.recipientCandidates.length) return loadRecipients()
-    if (!transferStore.recipient) {
+  if (service.value === 'transfer' && ['2-05', '2-17'].includes(screenId.value)) {
+    if (!transferStore.candidates.length) return loadRecipients()
+    if (!transferStore.selectedRecipient) {
       actionError.value = '받는 분을 직접 선택해 주세요.'
       return
     }
     return go({ name: 'transfer-screen', params: { screenId: '2-18' } })
   }
   if (service.value === 'transfer' && screenId.value === '2-18') {
-    if (!transferStore.selectedAccount) {
+    if (!transferStore.fromAccount) {
       actionError.value = '출금할 계좌를 직접 선택해 주세요.'
       return
     }
     return go({ name: 'transfer-screen', params: { screenId: '2-07' } })
   }
   if (service.value === 'transfer' && screenId.value === '2-07') {
-    const transferAmount = parsedTransferAmount()
+    const transferAmount = transferStore.draftAmount || parsedTransferAmount()
     if (!transferAmount) {
       actionError.value = '보낼 금액을 숫자로 입력해 주세요.'
       return
@@ -399,10 +407,12 @@ async function handlePrimary() {
       if (!Number.isSafeInteger(confirmedAmount) || confirmedAmount <= 0) {
         throw new Error('보낼 금액을 확인해 주세요.')
       }
+      if (transferStore.amountReconfirmRequired) return
+      transferStore.setAmount(confirmedAmount)
       await transferStore.prepare({
-        fromAccountId:
-          transferStore.selectedAccount?.accountId ?? transferStore.selectedAccount?.id,
-        recipientId: transferStore.recipient?.recipientId ?? transferStore.recipient?.id,
+        fromAccountId: transferStore.fromAccount?.accountId ?? transferStore.fromAccount?.id,
+        recipientId:
+          transferStore.selectedRecipient?.recipientId ?? transferStore.selectedRecipient?.id,
         amount: confirmedAmount,
       })
       await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
@@ -428,16 +438,13 @@ async function handlePrimary() {
           return
         }
       }
-      if (!/^\d{6}$/.test(transferPin.value)) {
-        actionError.value = '송금 PIN 6자리를 입력해 주세요.'
+      const confirmed = await transferStore.confirm({ approved: true })
+      if (!confirmed?.executable || !transferStore.executable) {
+        actionError.value = '지금은 송금을 진행할 수 없어요.'
         return
       }
-      if (!transferStore.confirmationCompleted) await transferStore.confirm({ approved: true })
-      if (!transferStore.authenticationCompleted) {
-        await transferStore.authenticate({ pin: transferPin.value })
-      }
-      await transferStore.execute()
-      await go({ name: 'transfer-screen', params: { screenId: '2-14' } })
+      // 실행 전에 거래 승인 비밀번호를 확인한다.
+      await go({ name: 'transfer-screen', params: { screenId: '2-11' } })
     } catch (error) {
       actionError.value = error.message
     }
@@ -461,6 +468,44 @@ async function handlePrimary() {
       }
     } catch (error) {
       actionError.value = error.message
+    }
+    return
+  }
+  if (service.value === 'transfer' && screenId.value === '2-11' && transferStore.transferId) {
+    const pin = transferPin.value.trim()
+    if (!/^\d{6}$/.test(pin)) {
+      actionError.value = '송금 PIN 6자리를 입력해 주세요.'
+      return
+    }
+    try {
+      const authenticated = await transferStore.authenticate({ pin })
+      transferPin.value = ''
+      if (!authenticated?.authenticated || !transferStore.authenticationCompleted) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-22' } })
+    } catch (error) {
+      transferPin.value = ''
+      actionError.value = error.message
+      await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+    }
+    return
+  }
+  if (service.value === 'transfer' && screenId.value === '2-22' && transferStore.transferId) {
+    if (!transferStore.confirmationCompleted || !transferStore.authenticationCompleted) {
+      actionError.value = '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.'
+      return
+    }
+    try {
+      const executed = await transferStore.execute()
+      await go({
+        name: 'transfer-screen',
+        params: { screenId: executed?.status === 'SUCCESS' ? '2-14' : '2-23' },
+      })
+    } catch (error) {
+      actionError.value = error.message
+      await go({ name: 'transfer-screen', params: { screenId: '2-23' } })
     }
     return
   }
@@ -552,7 +597,8 @@ onMounted(() => {
             screen?.contentHtml &&
             !(service === 'transfer' && screenId === '2-08') &&
             !hideScreenActions &&
-            !showVoiceControl
+            !showVoiceControl &&
+            !showTransferFlow
           "
           class="service-route-screen-content screen-content"
           :data-variant="screen.variant"
@@ -581,6 +627,41 @@ onMounted(() => {
         </section>
 
         <label
+          v-if="showRecipientSearch"
+          class="service-route-input-field"
+        >
+          <span>받는 분 이름</span>
+          <input
+            v-model="recipientSearch"
+            autocomplete="name"
+            maxlength="50"
+            placeholder="예: 김영희"
+            type="text"
+            @input="clearRecipientCandidates"
+          />
+        </label>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-11'"
+          class="service-route-input-field"
+        >
+          <span>거래 승인 비밀번호</span>
+          <input
+            v-model="transferPin"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="PIN 6자리"
+            type="password"
+          />
+        </label>
+
+        <TransferFlowPanel
+          v-if="showTransferFlow"
+          :screen-id="screenId"
+        />
+
+        <label
           v-if="service === 'transfer' && screenId === '2-09'"
           class="service-route-input-field"
         >
@@ -595,6 +676,7 @@ onMounted(() => {
 
         <label
           v-if="service === 'transfer' && screenId === '2-07'"
+          v-show="!showTransferFlow"
           class="service-route-input-field"
         >
           <span>보낼 금액</span>
@@ -612,6 +694,7 @@ onMounted(() => {
           v-if="
             service === 'transfer' &&
             screenId === '2-05' &&
+            !showTransferFlow &&
             transferStore.recipientCandidates.length
           "
           aria-label="받는 분 선택"
@@ -635,7 +718,7 @@ onMounted(() => {
         </section>
 
         <label
-          v-if="service === 'transfer' && screenId === '2-05'"
+          v-if="service === 'transfer' && screenId === '2-05' && !showTransferFlow"
           class="service-route-input-field"
         >
           <span>받는 분 이름</span>
@@ -651,6 +734,7 @@ onMounted(() => {
 
         <section
           v-if="service === 'transfer' && screenId === '2-18'"
+          v-show="!showTransferFlow"
           aria-label="출금 계좌 선택"
           class="service-route-live-panel"
         >
@@ -699,7 +783,7 @@ onMounted(() => {
         </section>
 
         <label
-          v-if="service === 'transfer' && screenId === '2-08'"
+          v-if="service === 'transfer' && screenId === '2-08' && !showTransferFlow"
           class="service-route-input-field"
         >
           <span>송금 PIN 6자리</span>
@@ -714,7 +798,7 @@ onMounted(() => {
         </label>
 
         <section
-          v-if="transferSummaryRows.length"
+          v-if="transferSummaryRows.length && !showTransferFlow"
           aria-label="실제 송금 내용"
           class="service-route-live-panel"
           aria-live="polite"

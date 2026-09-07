@@ -1,17 +1,22 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { normalizeApiError } from '../api/errors.js'
 import { createIdempotencyKey } from '../api/request.js'
 import { transfersApi } from '../api/transfers.js'
+import { voiceApi } from '../api/voice.js'
 
 export const useTransferStore = defineStore('transfer', () => {
+  const sessionId = ref('')
   const transferId = ref('')
-  const selectedAccount = ref(null)
-  const recipient = ref(null)
-  const recipientCandidates = ref([])
+  const candidates = ref([])
+  const selectedRecipient = ref(null)
+  const fromAccount = ref(null)
+  const draftAmount = ref(null)
   const amount = ref(null)
   const prepared = ref(null)
+  const confirmation = ref(null)
+  const authentication = ref(null)
   const validation = ref(null)
   const result = ref(null)
   const riskCleared = ref(false)
@@ -20,6 +25,47 @@ export const useTransferStore = defineStore('transfer', () => {
   const executeIdempotencyKey = ref('')
   const error = ref(null)
   const busy = ref(false)
+
+  // These aliases keep older service-route integrations source-compatible while
+  // the canonical flow uses selectedRecipient/fromAccount/candidates.
+  const recipient = computed({
+    get: () => selectedRecipient.value,
+    set: (value) => {
+      selectedRecipient.value = value ?? null
+    },
+  })
+  const selectedAccount = computed({
+    get: () => fromAccount.value,
+    set: (value) => {
+      fromAccount.value = value ?? null
+    },
+  })
+  const recipientCandidates = computed(() => candidates.value)
+  const recipientName = computed(
+    () => selectedRecipient.value?.displayName || selectedRecipient.value?.name || '',
+  )
+  const executable = computed(() => Boolean(confirmation.value?.executable))
+  const authenticated = computed(() => Boolean(authentication.value?.authenticated))
+  const amountReconfirmRequired = computed(() =>
+    Boolean(validation.value?.amountReconfirmRequired ?? prepared.value?.amountReconfirmRequired),
+  )
+
+  function recipientIdOf(value) {
+    return value?.recipientId ?? value?.id ?? ''
+  }
+
+  function accountIdOf(value) {
+    const candidate = value?.accountId ?? value?.id ?? value
+    return typeof candidate === 'string' || typeof candidate === 'number' ? candidate : ''
+  }
+
+  const readyToPrepare = computed(() =>
+    Boolean(
+      recipientIdOf(selectedRecipient.value) &&
+      accountIdOf(fromAccount.value) &&
+      Number(draftAmount.value) > 0,
+    ),
+  )
 
   async function run(request) {
     busy.value = true
@@ -34,6 +80,12 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   }
 
+  async function startSession() {
+    const response = await run(() => voiceApi.createSession({ entryPoint: 'TRANSFER' }))
+    sessionId.value = response?.sessionId ?? ''
+    return response
+  }
+
   function candidatesOf(response) {
     if (Array.isArray(response)) return response
     if (Array.isArray(response?.candidates)) return response.candidates
@@ -41,35 +93,47 @@ export const useTransferStore = defineStore('transfer', () => {
     return []
   }
 
-  function recipientIdOf(value) {
-    return value?.recipientId ?? value?.id ?? ''
-  }
-
-  function accountIdOf(value) {
-    const candidate = value?.accountId ?? value?.id ?? value
-    return typeof candidate === 'string' || typeof candidate === 'number' ? candidate : ''
-  }
-
+  /** 후보를 자동 확정하지 않는다. 사용자가 직접 고른 뒤에만 다음 단계로 간다. */
   async function findRecipients(request) {
     const response = await run(() => transfersApi.candidates(request))
-    recipientCandidates.value = candidatesOf(response)
-    recipient.value = recipientCandidates.value.length === 1 ? recipientCandidates.value[0] : null
-    return response
+    candidates.value = candidatesOf(response)
+    selectedRecipient.value = null
+    return candidates.value
   }
 
   function clearRecipientSelection() {
-    recipient.value = null
-    recipientCandidates.value = []
+    selectedRecipient.value = null
+    candidates.value = []
   }
 
   function selectRecipient(candidate) {
     if (!recipientIdOf(candidate)) throw new Error('받는 분 정보를 다시 선택해 주세요.')
-    recipient.value = candidate
+    selectedRecipient.value = candidate
   }
 
   function selectAccount(account) {
     if (!accountIdOf(account)) throw new Error('출금 계좌를 다시 선택해 주세요.')
-    selectedAccount.value = account
+    fromAccount.value = account
+  }
+
+  function setAmount(value) {
+    const parsed = Number(String(value ?? '').replace(/[^0-9]/g, ''))
+    draftAmount.value = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+    return draftAmount.value
+  }
+
+  async function validateAmount(request) {
+    const payload = request ?? {
+      recognizedAmount: draftAmount.value,
+      amountCandidates: draftAmount.value ? [draftAmount.value] : [],
+    }
+    const response = await run(() => transfersApi.validateAmount(payload))
+    validation.value = response
+    if (response?.confirmedAmount) {
+      draftAmount.value = response.confirmedAmount
+      amount.value = response.confirmedAmount
+    }
+    return response
   }
 
   function resetFinancialExecutionState() {
@@ -77,12 +141,15 @@ export const useTransferStore = defineStore('transfer', () => {
     confirmationCompleted.value = false
     authenticationCompleted.value = false
     executeIdempotencyKey.value = ''
+    confirmation.value = null
+    authentication.value = null
   }
 
+  /** 선택한 수취인·계좌·금액으로 송금 초안을 만든다. */
   async function prepare(request) {
-    const fromAccountId = accountIdOf(request?.fromAccountId ?? selectedAccount.value)
-    const recipientId = request?.recipientId ?? recipientIdOf(recipient.value)
-    const transferAmount = Number(request?.amount ?? amount.value)
+    const fromAccountId = accountIdOf(request?.fromAccountId ?? fromAccount.value)
+    const recipientId = request?.recipientId ?? recipientIdOf(selectedRecipient.value)
+    const transferAmount = Number(request?.amount ?? draftAmount.value ?? amount.value)
     if (!fromAccountId) throw new Error('출금 계좌를 선택해 주세요.')
     if (!recipientId) throw new Error('받는 분을 선택해 주세요.')
     if (!Number.isFinite(transferAmount) || transferAmount <= 0) {
@@ -91,11 +158,15 @@ export const useTransferStore = defineStore('transfer', () => {
 
     const payload = { fromAccountId, recipientId, amount: transferAmount }
     if (request?.voiceSessionId) payload.voiceSessionId = request.voiceSessionId
+    else if (sessionId.value) payload.voiceSessionId = sessionId.value
+
     const response = await run(() => transfersApi.prepare(payload))
     resetFinancialExecutionState()
     prepared.value = response
     transferId.value = response?.transferId ?? ''
-    amount.value = transferAmount
+    amount.value = response?.amount ?? transferAmount
+    draftAmount.value = amount.value
+    executeIdempotencyKey.value = createIdempotencyKey()
     return response
   }
 
@@ -104,26 +175,52 @@ export const useTransferStore = defineStore('transfer', () => {
     resetFinancialExecutionState()
     prepared.value = response
     transferId.value = response?.transferId ?? transfer
+    amount.value = response?.amount ?? amount.value
+    draftAmount.value = amount.value
+    executeIdempotencyKey.value = createIdempotencyKey()
     return response
   }
 
+  /** 승인하면 서버가 executable을 내려준다. */
   async function confirm(request = { approved: true }) {
     const response = await run(() => transfersApi.confirm(transferId.value, request))
+    confirmation.value = response
+    confirmationCompleted.value = Boolean(response?.executable)
+    authentication.value = null
+    authenticationCompleted.value = false
     prepared.value = { ...prepared.value, ...response }
-    confirmationCompleted.value = true
     return response
   }
 
+  /** 거래 승인 PIN 인증. PIN 값은 보관하지 않고 결과만 남긴다. */
   async function authenticate(request) {
     const response = await run(() => transfersApi.authenticate(transferId.value, request))
-    authenticationCompleted.value = true
+    authentication.value = response
+    authenticationCompleted.value = Boolean(response?.authenticated)
     return response
   }
 
+  function localError(code, message) {
+    return normalizeApiError({ response: { data: { code, message } } })
+  }
+
+  /** 서버 승인과 PIN 인증이 모두 끝난 경우에만 실행한다. */
   async function execute(request = {}, options = {}) {
+    if (!executable.value) {
+      error.value = localError(
+        'TRANSFER_NOT_CONFIRMED',
+        '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.',
+      )
+      throw error.value
+    }
+    if (!authenticated.value) {
+      error.value = localError('TRANSFER_NOT_AUTHENTICATED', '비밀번호 확인이 필요해요.')
+      throw error.value
+    }
     if (!executeIdempotencyKey.value) {
       executeIdempotencyKey.value = options.idempotencyKey || createIdempotencyKey()
     }
+
     const response = await run(() =>
       transfersApi.execute(transferId.value, request, {
         ...options,
@@ -137,13 +234,7 @@ export const useTransferStore = defineStore('transfer', () => {
   async function cancel() {
     const response = await run(() => transfersApi.cancel(transferId.value))
     prepared.value = response
-    return response
-  }
-
-  async function validateAmount(request) {
-    const response = await run(() => transfersApi.validateAmount(request))
-    validation.value = response
-    amount.value = response?.confirmedAmount ?? amount.value
+    resetFinancialExecutionState()
     return response
   }
 
@@ -180,11 +271,16 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   function reset() {
+    sessionId.value = ''
     transferId.value = ''
-    selectedAccount.value = null
-    clearRecipientSelection()
+    candidates.value = []
+    selectedRecipient.value = null
+    fromAccount.value = null
+    draftAmount.value = null
     amount.value = null
     prepared.value = null
+    confirmation.value = null
+    authentication.value = null
     validation.value = null
     result.value = null
     resetFinancialExecutionState()
@@ -193,33 +289,49 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   return {
+    sessionId,
     transferId,
-    selectedAccount,
-    recipient,
-    recipientCandidates,
+    candidates,
+    selectedRecipient,
+    fromAccount,
+    draftAmount,
     amount,
     prepared,
+    confirmation,
+    authentication,
     validation,
     result,
     riskCleared,
     confirmationCompleted,
     authenticationCompleted,
+    executeIdempotencyKey,
     error,
     busy,
+    recipient,
+    selectedAccount,
+    recipientCandidates,
+    recipientName,
+    executable,
+    authenticated,
+    amountReconfirmRequired,
+    readyToPrepare,
+    startSession,
     findRecipients,
     clearRecipientSelection,
     selectRecipient,
     selectAccount,
+    setAmount,
+    validateAmount,
     prepare,
     load,
     confirm,
     authenticate,
     execute,
     cancel,
-    validateAmount,
     assessRisk,
     checkRisk,
     isRiskHeld,
+    needsAdditionalRiskCheck,
     reset,
   }
 })

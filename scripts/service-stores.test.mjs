@@ -42,42 +42,89 @@ test('service data store loads account, bill summary, and reminder collections',
   }
 })
 
-test('transfer store accepts a unique candidate, requires valid preparation fields, and calls API actions', async () => {
+test('transfer store requires explicit recipient selection and authenticated execution', async () => {
   setup()
   const originals = {
     candidates: transfersApi.candidates,
     prepare: transfersApi.prepare,
     validateAmount: transfersApi.validateAmount,
+    confirm: transfersApi.confirm,
+    authenticate: transfersApi.authenticate,
     execute: transfersApi.execute,
   }
   transfersApi.candidates = async () => ({ candidates: [{ recipientId: 'r-1', name: '김영희' }] })
-  transfersApi.prepare = async () => ({ transferId: 't-1', status: 'READY' })
+  let executeOptions = null
+  transfersApi.prepare = async (request) => ({ transferId: 't-1', status: 'DRAFT', ...request })
   transfersApi.validateAmount = async (request) => ({ ...request, confirmedAmount: 50000 })
-  transfersApi.execute = async () => ({ paymentId: 'p-1', status: 'COMPLETED' })
+  transfersApi.confirm = async () => ({ transferId: 't-1', status: 'CONFIRMED', executable: true })
+  transfersApi.authenticate = async () => ({ authenticated: true })
+  transfersApi.execute = async (transferId, request, options) => {
+    executeOptions = { transferId, request, options }
+    return { transactionId: 'x-1', transferId, status: 'SUCCESS', amount: 50000 }
+  }
 
   try {
     const store = useTransferStore()
     await store.findRecipients({ keyword: '김영희' })
-    assert.equal(store.recipient.recipientId, 'r-1')
+    assert.equal(store.recipient, null)
+    assert.equal(store.recipientCandidates[0].recipientId, 'r-1')
+    store.selectRecipient(store.recipientCandidates[0])
     store.clearRecipientSelection()
     assert.equal(store.recipient, null)
     assert.deepEqual(store.recipientCandidates, [])
     await store.findRecipients({ keyword: '김영희' })
+    store.selectRecipient(store.recipientCandidates[0])
+    store.selectAccount({ accountId: 'a-1' })
     await assert.rejects(() =>
       store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 0 }),
     )
     await store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 })
     const validation = await store.validateAmount({ recognizedAmount: 50000, amountCandidates: [] })
+    await store.confirm({ approved: true })
+    await store.authenticate({ pin: '123456' })
     const result = await store.execute()
 
     assert.equal(store.transferId, 't-1')
     assert.equal(validation.confirmedAmount, 50000)
-    assert.equal(result.paymentId, 'p-1')
-    assert.equal(store.result.status, 'COMPLETED')
+    assert.equal(store.executable, true)
+    assert.equal(store.authenticated, true)
+    assert.equal(result.status, 'SUCCESS')
+    assert.equal(store.result.transactionId, 'x-1')
+    assert.ok(executeOptions.options.idempotencyKey)
     store.reset()
     assert.equal(store.transferId, '')
     assert.equal(store.recipient, null)
     assert.deepEqual(store.recipientCandidates, [])
+  } finally {
+    Object.assign(transfersApi, originals)
+  }
+})
+
+test('transfer store refuses to execute before confirmation and PIN authentication', async () => {
+  setup()
+  const originals = {
+    prepare: transfersApi.prepare,
+    confirm: transfersApi.confirm,
+    execute: transfersApi.execute,
+  }
+  let executed = false
+  transfersApi.prepare = async () => ({ transferId: 't-2', status: 'DRAFT' })
+  transfersApi.confirm = async () => ({ transferId: 't-2', status: 'CONFIRMED', executable: true })
+  transfersApi.execute = async () => {
+    executed = true
+    return { status: 'SUCCESS' }
+  }
+
+  try {
+    const store = useTransferStore()
+    await store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 })
+
+    await assert.rejects(() => store.execute())
+
+    await store.confirm({ approved: true })
+    await assert.rejects(() => store.execute())
+
+    assert.equal(executed, false)
   } finally {
     Object.assign(transfersApi, originals)
   }
@@ -125,6 +172,8 @@ test('transfer risk clearance is scoped to a prepared transfer and execution ret
     prepare: transfersApi.prepare,
     riskScore: transfersApi.riskScore,
     riskCheck: transfersApi.riskCheck,
+    confirm: transfersApi.confirm,
+    authenticate: transfersApi.authenticate,
     execute: transfersApi.execute,
   }
   const executeKeys = []
@@ -136,6 +185,8 @@ test('transfer risk clearance is scoped to a prepared transfer and execution ret
     return { additionalCheckRequired: true }
   }
   transfersApi.riskCheck = async () => ({ hold: false, additionalCheckRequired: false })
+  transfersApi.confirm = async () => ({ executable: true })
+  transfersApi.authenticate = async () => ({ authenticated: true })
   transfersApi.execute = async (_transferId, _request, options) => {
     executeCalls += 1
     executeKeys.push(options.idempotencyKey)
@@ -151,6 +202,8 @@ test('transfer risk clearance is scoped to a prepared transfer and execution ret
     assert.equal(store.riskCleared, true)
     await store.assessRisk()
     assert.equal(riskScoreCalls, 1)
+    await store.confirm({ approved: true })
+    await store.authenticate({ pin: '123456' })
     await assert.rejects(() => store.execute())
 
     transfersApi.prepare = async () => {
@@ -159,6 +212,8 @@ test('transfer risk clearance is scoped to a prepared transfer and execution ret
     await assert.rejects(() =>
       store.prepare({ fromAccountId: 'a-1', recipientId: 'r-1', amount: 50000 }),
     )
+    assert.equal(store.confirmationCompleted, true)
+    assert.equal(store.authenticationCompleted, true)
     await store.execute()
     assert.equal(executeKeys.length, 2)
     assert.equal(executeKeys[0], executeKeys[1])
@@ -173,6 +228,8 @@ test('transfer risk clearance is scoped to a prepared transfer and execution ret
     assert.equal(store.riskCleared, true)
     await store.assessRisk()
     assert.equal(riskScoreCalls, 2)
+    await store.confirm({ approved: true })
+    await store.authenticate({ pin: '123456' })
     await store.execute()
     assert.notEqual(executeKeys[1], executeKeys[2])
 
@@ -271,7 +328,7 @@ test('transfer execution retry skips already completed confirmation and PIN auth
   }
   transfersApi.confirm = async () => {
     confirmCalls += 1
-    return { confirmed: true }
+    return { confirmed: true, executable: true }
   }
   transfersApi.authenticate = async () => {
     authenticateCalls += 1
