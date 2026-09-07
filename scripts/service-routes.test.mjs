@@ -300,6 +300,10 @@ test('transfer failure screen renders runtime failure details instead of an empt
   assert.match(transferFlowPanelSource, /송금을 처리하지 못했어요/)
 })
 
+test('transfer failure screen does not repeat the same error announcement', () => {
+  assert.match(transferFlowPanelSource, /v-if="transferStore\.error && !showFailure"/)
+})
+
 test('bill home reads the backend monthly totalCount field before legacy fallbacks', () => {
   assert.match(serviceHomeSource, /monthlySummary\.totalCount \?\? monthlySummary\.billCount/)
 })

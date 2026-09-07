@@ -257,7 +257,7 @@ onMounted(() => {
     </div>
 
     <p
-      v-if="transferStore.error"
+      v-if="transferStore.error && !showFailure"
       class="text-[15px] leading-relaxed text-destructive"
       role="alert"
     >
