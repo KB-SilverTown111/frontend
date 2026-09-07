@@ -42,6 +42,32 @@ test('service data store loads account, bill summary, and reminder collections',
   }
 })
 
+test('service data reset clears user data and ignores an in-flight response from the old session', async () => {
+  setup()
+  const originalList = accountsApi.list
+  let resolveAccounts
+  accountsApi.list = () =>
+    new Promise((resolve) => {
+      resolveAccounts = resolve
+    })
+
+  try {
+    const store = useServiceDataStore()
+    const pending = store.loadAccounts()
+    store.accounts = [{ accountId: 'old-account' }]
+    store.monthlySummary = { totalAmount: 100000 }
+    store.reset()
+    resolveAccounts([{ accountId: 'old-account' }])
+    await pending
+
+    assert.deepEqual(store.accounts, [])
+    assert.equal(store.monthlySummary, null)
+    assert.equal(store.loading.accounts, false)
+  } finally {
+    accountsApi.list = originalList
+  }
+})
+
 test('transfer store requires explicit recipient selection and authenticated execution', async () => {
   setup()
   const originals = {

@@ -17,9 +17,9 @@ async function handleLogout() {
   isLoggingOut.value = true
   try {
     await onboardingStore.logout()
+    await router.replace({ name: 'onboarding', params: { stepId: 'login' } })
   } finally {
     isLoggingOut.value = false
-    await router.replace({ name: 'onboarding', params: { stepId: 'login' } })
   }
 }
 </script>
@@ -69,7 +69,8 @@ async function handleLogout() {
             <b aria-hidden="true">›</b>
           </RouterLink>
           <button
-            aria-label="로그아웃"
+            :aria-busy="isLoggingOut"
+            :aria-label="isLoggingOut ? '로그아웃 중' : '로그아웃'"
             class="my-page-card my-page-logout"
             :disabled="isLoggingOut"
             type="button"

@@ -69,6 +69,12 @@ test('my page exposes a logout action', () => {
   assert.match(myPageSource, /<button[\s\S]*my-page-logout/)
   assert.match(myPageSource, /@click="handleLogout"/)
   assert.match(myPageSource, /로그아웃/)
+  assert.match(myPageSource, /:aria-label="isLoggingOut \? '로그아웃 중' : '로그아웃'"/)
+  assert.match(myPageSource, /:aria-busy="isLoggingOut"/)
+  assert.match(
+    myPageSource,
+    /await onboardingStore\.logout\(\)[\s\S]*await router\.replace\([\s\S]*finally\s*\{\s*isLoggingOut\.value = false/s,
+  )
 })
 
 test('production navigation exposes my page as the rightmost fourth item', () => {

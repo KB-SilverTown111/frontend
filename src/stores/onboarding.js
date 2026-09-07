@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { normalizeApiError } from '../api/errors.js'
 import { clearAuthSession, loadAuthSession, saveAuthSession } from '../api/authStorage.js'
 import { onboardingApi } from '../api/onboarding.js'
+import { resetAuthenticatedStores } from './session.js'
 import {
   buildLoginRequest,
   buildSignUpRequest,
@@ -13,6 +14,8 @@ import {
 const REQUIRED_DATA_STEPS = ['consents', 'account', 'identity', 'contact', 'finance', 'voice']
 const AUTH_STORAGE_WARNING =
   '로그인 상태를 안전하게 저장하지 못했어요. 앱을 종료하면 다시 로그인해야 해요.'
+const LOGOUT_AUTH_STORAGE_WARNING =
+  '로그아웃 정보를 안전하게 삭제하지 못했어요. 앱을 종료하기 전에 다시 시도해 주세요.'
 
 export const useOnboardingStore = defineStore('onboarding', {
   state: () => ({
@@ -89,8 +92,12 @@ export const useOnboardingStore = defineStore('onboarding', {
         // Clear the local session even when the server cannot be reached.
       }
 
-      await this.reset()
-      return { ok: true }
+      const resetResult = await this.reset()
+      resetAuthenticatedStores(this._p)
+      if (!resetResult.authStorageCleared) {
+        this.authStorageWarning = LOGOUT_AUTH_STORAGE_WARNING
+      }
+      return { ok: resetResult.authStorageCleared, ...resetResult }
     },
 
     async persistAuthSession(authResult) {
@@ -124,7 +131,12 @@ export const useOnboardingStore = defineStore('onboarding', {
     },
 
     async reset() {
-      await clearAuthSession().catch(() => {})
+      let authStorageCleared = true
+      try {
+        await clearAuthSession()
+      } catch {
+        authStorageCleared = false
+      }
       this.draft = createOnboardingDraft()
       this.fieldErrors = {}
       this.status = 'idle'
@@ -133,6 +145,7 @@ export const useOnboardingStore = defineStore('onboarding', {
       this.authStorageWarning = null
       this.authResult = null
       this.voiceResult = null
+      return { authStorageCleared }
     },
   },
 })

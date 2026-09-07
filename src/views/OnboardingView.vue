@@ -320,7 +320,7 @@ function handleSecondary() {
     :busy="permissionsRequesting || store.status === 'loading'"
     :description="screenCopy[1]"
     :hide-back="screenId === 'login'"
-    :error-message="store.submitError?.message || ''"
+    :error-message="store.submitError?.message || store.authStorageWarning || ''"
     :primary-label="primaryLabel"
     :progress="progress"
     :secondary-label="secondaryLabel"
