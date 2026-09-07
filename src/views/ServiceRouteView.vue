@@ -14,6 +14,7 @@ import {
 } from '@/services/productionServiceScreens.js'
 import {
   captureVideoFrame,
+  CONTACTS_PERMISSION_DENIED,
   getContactCandidates,
   getCurrentLocation,
   photoToBlob,
@@ -281,6 +282,18 @@ const isBusy = computed(
     (isMobileBranchListScreen.value &&
       (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
 )
+/** 2-20은 돈이 나가지 않았음을 남은 잔액으로 확인시켜 준다. */
+const remainingBalanceRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-20') return []
+
+  const account = transferStore.selectedAccount || serviceData.accounts[0]
+  if (!account) return []
+
+  return [
+    { label: '출금 계좌', value: account.accountName || account.accountType || '내 계좌' },
+    { label: '그대로 있는 잔액', value: formatCurrency(account.balance) },
+  ]
+})
 
 function formatCurrency(value) {
   const amount = Number(value)
@@ -728,7 +741,17 @@ async function loadRecipients() {
   actionBusy.value = true
   actionError.value = ''
   try {
-    const contacts = await getContactCandidates().catch(() => [])
+    let contacts = []
+    try {
+      contacts = await getContactCandidates()
+    } catch (contactsError) {
+      // 권한 거부는 안내 화면으로 보내고, 그 밖의 실패는 직접 검색으로 이어간다.
+      if (contactsError?.code === CONTACTS_PERMISSION_DENIED) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-06' } })
+        return
+      }
+    }
+
     const found = await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
     if (!found.length) {
       throw new Error('받는 분을 찾지 못했어요. 이름이나 계좌 정보를 다시 확인해 주세요.')
@@ -1103,6 +1126,16 @@ onBeforeRouteLeave((to) => {
 
 watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
 
+/** 2-20에서 보여줄 잔액이 없으면 계좌를 불러온다. */
+watch(
+  [service, screenId],
+  () => {
+    if (service.value !== 'transfer' || screenId.value !== '2-20') return
+    if (serviceData.accounts.length || serviceData.loading.accounts) return
+    serviceData.loadAccounts({ active: true }).catch(() => {})
+  },
+  { immediate: true },
+)
 onBeforeUnmount(cleanupBillCamera)
 
 onMounted(() => {
@@ -1850,6 +1883,26 @@ onMounted(() => {
           <div class="service-route-live-rows">
             <div
               v-for="row in transferSummaryRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+        <section
+          v-if="remainingBalanceRows.length"
+          aria-label="남은 잔액"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>계좌에서 빠져나간 금액이 없어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in remainingBalanceRows"
               :key="row.label"
               class="service-route-live-row"
             >
