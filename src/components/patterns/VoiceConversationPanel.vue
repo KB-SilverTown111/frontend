@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
       이렇게 들었어요 — “{{ voiceStore.transcript }}”
     </p>
 
-    <section
+    <div
       v-if="candidateCard"
       :aria-label="candidateHeading"
       class="flex flex-col gap-3 rounded-2xl border p-4"
@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
       >
         돈 보내기 그만두기
       </Button>
-    </section>
+    </div>
 
     <div
       v-if="requiredSlotRows.length"
