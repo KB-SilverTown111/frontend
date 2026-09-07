@@ -9,6 +9,11 @@ import {
   productionServiceScreens,
   resolveProductionScreen,
 } from '../src/services/productionServiceScreens.js'
+import {
+  mobileBranchSchedule,
+  mobileBranchDocuments,
+  mobileBranchServices,
+} from '../src/services/mobileBranchPresentation.js'
 
 const serviceHomeSource = readFileSync(
   new URL('../src/views/ServiceHomeView.vue', import.meta.url),
@@ -20,6 +25,10 @@ const transferHomeSource = readFileSync(
 )
 const routeViewSource = readFileSync(
   new URL('../src/views/ServiceRouteView.vue', import.meta.url),
+  'utf8',
+)
+const mobileBranchPresentationSource = readFileSync(
+  new URL('../src/services/mobileBranchPresentation.js', import.meta.url),
   'utf8',
 )
 const serviceStyleSource = readFileSync(
@@ -307,4 +316,63 @@ test('production supporting text stays readable beside the large action labels',
     serviceStyleSource,
     /\.service-route-error,[\s\S]*?\.service-home-data-error\s*\{[\s\S]*?font-size:\s*16px;/,
   )
+})
+
+test('mobile branch screen loads nearby data and renders the agreed card fields', () => {
+  assert.match(routeViewSource, /getCurrentLocation/)
+  assert.match(routeViewSource, /loadMobileBranches/)
+  assert.match(routeViewSource, /mobileBranches/)
+  assert.match(routeViewSource, /mobileBranchServices/)
+  assert.match(routeViewSource, /mobileBranchDocuments/)
+  assert.match(routeViewSource, /mobileBranchDistance/)
+  assert.match(mobileBranchPresentationSource, /availableServices/)
+  assert.match(mobileBranchPresentationSource, /requiredDocuments/)
+  assert.match(mobileBranchPresentationSource, /distanceMeters/)
+  assert.match(mobileBranchPresentationSource, /visitTime/)
+  assert.match(routeViewSource, /mobileBranchLocationLoading/)
+  assert.match(routeViewSource, /mobileBranchPrimaryDisabled/)
+  assert.match(routeViewSource, /:disabled="isBusy \|\| mobileBranchPrimaryDisabled"/)
+})
+
+test('mobile branch presentation renders the three agreed MVP data shapes', () => {
+  const branches = [
+    {
+      branchId: 'mobile-1',
+      name: 'KB 이동점포 강남 데모 1호',
+      address: '서울특별시 강남구 테헤란로 152',
+      visitDate: '2026-09-08',
+      visitTime: '10:00~16:00',
+      availableServices: ['입출금·통장 업무', '금융 상담'],
+      requiredDocuments: ['신분증'],
+    },
+    {
+      branchId: 'mobile-2',
+      name: 'KB 이동점포 송파 데모 2호',
+      address: '서울특별시 송파구 올림픽로 300',
+      visitDate: '2026-09-09',
+      visitTime: '10:00~16:00',
+      availableServices: ['계좌 조회·통장 업무', '카드 관련 상담'],
+      requiredDocuments: ['신분증'],
+    },
+    {
+      branchId: 'mobile-3',
+      name: 'KB 이동점포 마포 데모 3호',
+      address: '서울특별시 마포구 월드컵로 240',
+      visitDate: '2026-09-10',
+      visitTime: '10:00~16:00',
+      availableServices: ['금융 상담', '대출 상담'],
+      requiredDocuments: ['신분증', '상담 관련 서류'],
+    },
+  ]
+
+  assert.match(mobileBranchSchedule(branches[0]), /9월 8일/)
+  assert.match(mobileBranchSchedule(branches[0]), /10:00~16:00/)
+  assert.match(mobileBranchSchedule(branches[1]), /9월 9일/)
+  assert.match(mobileBranchSchedule(branches[2]), /9월 10일/)
+  assert.deepEqual(mobileBranchServices(branches[0]), ['입출금·통장 업무', '금융 상담'])
+  assert.deepEqual(mobileBranchServices(branches[1]), ['계좌 조회·통장 업무', '카드 관련 상담'])
+  assert.deepEqual(mobileBranchServices(branches[2]), ['금융 상담', '대출 상담'])
+  assert.deepEqual(mobileBranchDocuments(branches[0]), ['신분증'])
+  assert.deepEqual(mobileBranchDocuments(branches[1]), ['신분증'])
+  assert.deepEqual(mobileBranchDocuments(branches[2]), ['신분증', '상담 관련 서류'])
 })

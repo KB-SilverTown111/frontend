@@ -14,9 +14,19 @@ import {
 import {
   captureVideoFrame,
   getContactCandidates,
+  getCurrentLocation,
   photoToBlob,
   takeBillPhoto,
 } from '@/services/nativeCapabilities.js'
+import {
+  mobileBranchAddress,
+  mobileBranchDistance,
+  mobileBranchDocuments,
+  mobileBranchId,
+  mobileBranchName,
+  mobileBranchSchedule,
+  mobileBranchServices,
+} from '@/services/mobileBranchPresentation.js'
 import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 import { useTransferStore } from '@/stores/transfer.js'
@@ -69,6 +79,19 @@ const showVoiceControl = computed(() =>
 )
 const isBillSourceSelection = computed(() => service.value === 'bills' && screenId.value === '3-02')
 const isBillCameraScreen = computed(() => service.value === 'bills' && screenId.value === '3-02A')
+const isMobileBranchListScreen = computed(
+  () => service.value === 'living' && screenId.value === '4-10',
+)
+const isMobileBranchDetailScreen = computed(
+  () => service.value === 'living' && screenId.value === '4-11',
+)
+const isMobileBranchScreen = computed(
+  () => isMobileBranchListScreen.value || isMobileBranchDetailScreen.value,
+)
+const mobileBranchLocationError = ref('')
+const mobileBranchLocationLoading = ref(false)
+const selectedMobileBranchId = ref('')
+let mobileBranchRequestId = 0
 
 /**
  * 2-02만 패널의 키보드 입력과 화면 버튼 라벨이 겹친다.
@@ -138,6 +161,38 @@ const liveRows = computed(() => {
   return []
 })
 
+const selectedMobileBranch = computed(() => {
+  const requestedId = route.query.branchId || selectedMobileBranchId.value
+  if (requestedId) {
+    const match = serviceData.mobileBranches.find(
+      (branch) => String(mobileBranchId(branch)) === String(requestedId),
+    )
+    if (match) return match
+  }
+
+  return isMobileBranchListScreen.value ? serviceData.mobileBranches[0] || null : null
+})
+const mobileBranchViewItems = computed(() =>
+  isMobileBranchListScreen.value
+    ? serviceData.mobileBranches
+    : selectedMobileBranch.value
+      ? [selectedMobileBranch.value]
+      : [],
+)
+
+const mobileBranchPrimaryDisabled = computed(() => {
+  if (!isMobileBranchListScreen.value) return false
+
+  return (
+    mobileBranchLocationLoading.value ||
+    Boolean(mobileBranchLocationError.value) ||
+    serviceData.loading.mobileBranches ||
+    Boolean(serviceData.errors.mobileBranches) ||
+    !selectedMobileBranch.value ||
+    mobileBranchId(selectedMobileBranch.value) == null
+  )
+})
+
 const transferSummaryRows = computed(() => {
   if (service.value !== 'transfer' || screenId.value !== '2-08') return []
 
@@ -175,7 +230,9 @@ const isBusy = computed(
     actionBusy.value ||
     transferStore.busy ||
     billStore.busy ||
-    (service.value === 'transfer' && serviceData.loading.accounts),
+    (service.value === 'transfer' && serviceData.loading.accounts) ||
+    (isMobileBranchListScreen.value &&
+      (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
 )
 
 function formatCurrency(value) {
@@ -187,6 +244,18 @@ function formatDate(value) {
   if (!value) return '일정 확인 중'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('ko-KR')
+}
+
+function isSelectedMobileBranch(branch) {
+  return String(mobileBranchId(branch)) === String(mobileBranchId(selectedMobileBranch.value))
+}
+
+function selectMobileBranch(branch) {
+  const branchId = mobileBranchId(branch)
+  if (branchId == null) return
+
+  selectedMobileBranchId.value = String(branchId)
+  actionError.value = ''
 }
 
 function stopBillCamera() {
@@ -297,6 +366,7 @@ async function loadContext(currentService, currentScreenId) {
     if (['4-06', '4-07', '4-08', '4-17', '4-18'].includes(currentScreenId)) {
       await serviceData.loadReminders({ status: 'SCHEDULED' }).catch(() => {})
     }
+    if (currentScreenId === '4-10') await loadMobileBranchData()
   }
 
   if (currentService === 'transfer' && ['2-08', '2-18'].includes(currentScreenId)) {
@@ -316,6 +386,71 @@ async function loadContext(currentService, currentScreenId) {
     (transferStore.draftAmount || transferStore.amount)
   ) {
     transferAmountInput.value = String(transferStore.draftAmount || transferStore.amount)
+  }
+}
+
+function mobileBranchLocationMessage(error) {
+  const code = Number(error?.code)
+  if (
+    error?.message === '위치 권한이 필요해요.' ||
+    error?.name === 'NotAllowedError' ||
+    code === 1
+  ) {
+    return '위치 권한을 허용해 주세요. 허용한 뒤 다시 찾기를 눌러 주세요.'
+  }
+  if (error?.name === 'TimeoutError' || code === 3) {
+    return '현재 위치 확인 시간이 오래 걸렸어요. 잠시 후 다시 시도해 주세요.'
+  }
+  if (code === 2) return '현재 위치를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.'
+  if (error?.message === '이 기기에서는 위치를 확인할 수 없어요.') return error.message
+  return '현재 위치를 확인하지 못했어요. 위치 설정을 확인한 뒤 다시 시도해 주세요.'
+}
+
+async function loadMobileBranchData() {
+  if (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches) return
+
+  const requestId = ++mobileBranchRequestId
+  mobileBranchLocationLoading.value = true
+  mobileBranchLocationError.value = ''
+  actionError.value = ''
+
+  try {
+    let position
+    try {
+      position = await getCurrentLocation()
+    } catch (error) {
+      if (requestId === mobileBranchRequestId) {
+        mobileBranchLocationError.value = mobileBranchLocationMessage(error)
+      }
+      return
+    }
+
+    if (requestId !== mobileBranchRequestId || !isMobileBranchListScreen.value) return
+
+    const latitude = Number(position?.coords?.latitude)
+    const longitude = Number(position?.coords?.longitude)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      mobileBranchLocationError.value = '현재 위치를 확인하지 못했어요. 다시 시도해 주세요.'
+      return
+    }
+
+    try {
+      await serviceData.loadMobileBranches({ latitude, longitude })
+    } catch {
+      return
+    }
+
+    if (requestId !== mobileBranchRequestId || !isMobileBranchListScreen.value) return
+
+    const hasSelectedBranch = serviceData.mobileBranches.some(
+      (branch) => String(mobileBranchId(branch)) === String(selectedMobileBranchId.value),
+    )
+    if (!hasSelectedBranch) selectedMobileBranchId.value = ''
+    if (!selectedMobileBranchId.value && serviceData.mobileBranches[0]) {
+      selectedMobileBranchId.value = String(mobileBranchId(serviceData.mobileBranches[0]))
+    }
+  } finally {
+    if (requestId === mobileBranchRequestId) mobileBranchLocationLoading.value = false
   }
 }
 
@@ -475,6 +610,8 @@ async function handlePrimary() {
   if (!screen.value || isBusy.value) return
   actionError.value = ''
 
+  if (isMobileBranchListScreen.value && mobileBranchPrimaryDisabled.value) return
+
   if (service.value === 'bills' && screenId.value === '3-02A') return captureBillFrame()
   if (service.value === 'bills' && screenId.value === '3-04' && billStore.billId) {
     await billStore
@@ -633,6 +770,24 @@ async function handlePrimary() {
       actionError.value = error.message
       await go({ name: 'transfer-screen', params: { screenId: '2-23' } })
     }
+    return
+  }
+  if (isMobileBranchListScreen.value) {
+    const branch = selectedMobileBranch.value
+    const branchId = mobileBranchId(branch)
+    if (!branch || branchId == null) {
+      actionError.value = '이동점포를 하나 선택해 주세요.'
+      return
+    }
+    await go({
+      name: 'living-screen',
+      params: { screenId: '4-11' },
+      query: { branchId: String(branchId) },
+    })
+    return
+  }
+  if (isMobileBranchDetailScreen.value) {
+    await go({ name: 'living-screen', params: { screenId: '4-10' } })
     return
   }
   if (service.value === 'living' && screenId.value === '4-07') {
@@ -841,6 +996,7 @@ onMounted(() => {
             !hideScreenActions &&
             !isBillSourceSelection &&
             !isBillCameraScreen &&
+            !isMobileBranchScreen &&
             !showVoiceControl &&
             !showTransferFlow
           "
@@ -868,6 +1024,141 @@ onMounted(() => {
           >
             오류 또는 주의가 필요한 화면입니다.
           </p>
+        </section>
+
+        <section
+          v-if="screen && isMobileBranchScreen"
+          aria-label="이동점포 정보"
+          class="service-route-screen-content screen-content mobile-branch-content"
+          :data-variant="screen.variant"
+        >
+          <div
+            v-if="isMobileBranchListScreen && mobileBranchLocationError"
+            class="mobile-branch-state mobile-branch-state-error"
+            role="alert"
+          >
+            <strong>현재 위치를 확인할 수 없어요</strong>
+            <p>{{ mobileBranchLocationError }}</p>
+            <Button
+              :disabled="isBusy"
+              variant="secondary"
+              @click="loadMobileBranchData"
+            >
+              다시 찾기
+            </Button>
+          </div>
+          <div
+            v-else-if="
+              isMobileBranchListScreen &&
+              (mobileBranchLocationLoading || serviceData.loading.mobileBranches)
+            "
+            aria-live="polite"
+            class="mobile-branch-state"
+            role="status"
+          >
+            <strong>현재 위치와 주변 이동점포를 확인하고 있어요</strong>
+            <p>잠시만 기다려 주세요.</p>
+          </div>
+          <div
+            v-else-if="isMobileBranchListScreen && serviceData.errors.mobileBranches"
+            class="mobile-branch-state mobile-branch-state-error"
+            role="alert"
+          >
+            <strong>이동점포 정보를 불러오지 못했어요</strong>
+            <p>{{ serviceData.errors.mobileBranches.message }}</p>
+            <Button
+              :disabled="isBusy"
+              variant="secondary"
+              @click="loadMobileBranchData"
+            >
+              다시 찾기
+            </Button>
+          </div>
+          <p
+            v-else-if="!mobileBranchViewItems.length"
+            class="mobile-branch-state"
+          >
+            {{
+              isMobileBranchDetailScreen
+                ? '목록에서 이동점포를 먼저 선택해 주세요.'
+                : '주변에 예정된 이동점포가 없어요.'
+            }}
+          </p>
+          <div
+            v-else
+            class="mobile-branch-list"
+          >
+            <article
+              v-for="branch in mobileBranchViewItems"
+              :key="mobileBranchId(branch)"
+              class="mobile-branch-card"
+              :class="{ 'is-selected': isSelectedMobileBranch(branch) }"
+            >
+              <button
+                v-if="isMobileBranchListScreen"
+                class="mobile-branch-select"
+                :aria-label="`${mobileBranchName(branch)} ${isSelectedMobileBranch(branch) ? '선택됨' : '선택'}`"
+                :aria-pressed="isSelectedMobileBranch(branch)"
+                type="button"
+                @click="selectMobileBranch(branch)"
+              >
+                <span
+                  aria-hidden="true"
+                  class="mobile-branch-select-indicator"
+                >
+                  {{ isSelectedMobileBranch(branch) ? '✓' : '' }}
+                </span>
+                <span>{{ isSelectedMobileBranch(branch) ? '선택됨' : '이동점포 선택' }}</span>
+              </button>
+              <div class="mobile-branch-card-body">
+                <div class="mobile-branch-card-header">
+                  <strong>{{ mobileBranchName(branch) }}</strong>
+                  <span>{{ mobileBranchDistance(branch) }}</span>
+                </div>
+                <p class="mobile-branch-address">{{ mobileBranchAddress(branch) }}</p>
+                <dl class="mobile-branch-details">
+                  <div>
+                    <dt>방문 시간</dt>
+                    <dd>{{ mobileBranchSchedule(branch) }}</dd>
+                  </div>
+                  <div>
+                    <dt>가능 업무</dt>
+                    <dd>
+                      <ul
+                        v-if="mobileBranchServices(branch).length"
+                        class="mobile-branch-tags"
+                      >
+                        <li
+                          v-for="serviceName in mobileBranchServices(branch)"
+                          :key="serviceName"
+                        >
+                          {{ serviceName }}
+                        </li>
+                      </ul>
+                      <span v-else>안내 없음</span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>준비물</dt>
+                    <dd>
+                      <ul
+                        v-if="mobileBranchDocuments(branch).length"
+                        class="mobile-branch-tags"
+                      >
+                        <li
+                          v-for="document in mobileBranchDocuments(branch)"
+                          :key="document"
+                        >
+                          {{ document }}
+                        </li>
+                      </ul>
+                      <span v-else>안내 없음</span>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </article>
+          </div>
         </section>
 
         <label
@@ -1127,7 +1418,7 @@ onMounted(() => {
           <Button
             v-if="screen.primaryLabel"
             class="service-route-primary"
-            :disabled="isBusy"
+            :disabled="isBusy || mobileBranchPrimaryDisabled"
             @click="handlePrimary"
           >
             {{ isBusy ? '처리하고 있어요…' : screen.primaryLabel }}

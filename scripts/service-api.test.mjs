@@ -4,6 +4,7 @@ import test from 'node:test'
 import { apiClient } from '../src/api/client.js'
 import { accountsApi } from '../src/api/accounts.js'
 import { billsApi } from '../src/api/bills.js'
+import { mobileBranchesApi } from '../src/api/mobileBranches.js'
 import { remindersApi } from '../src/api/reminders.js'
 import { transfersApi } from '../src/api/transfers.js'
 
@@ -115,6 +116,23 @@ test('reminder API exposes only list and create paths', async () => {
     )
     assert.deepEqual(requests[0].params, { status: 'SCHEDULED' })
     assert.equal(requests[1].headers['Idempotency-Key'].length > 0, true)
+  } finally {
+    restore()
+  }
+})
+
+test('mobile branch nearby API sends the current location to the nearby path', async () => {
+  let captured
+  const restore = useAdapter((config) => {
+    captured = config
+  })
+
+  try {
+    await mobileBranchesApi.nearby({ latitude: 37.5001, longitude: 127.0369 })
+
+    assert.equal(captured.method, 'get')
+    assert.equal(captured.url, '/mobile-branches/nearby')
+    assert.deepEqual(captured.params, { latitude: 37.5001, longitude: 127.0369 })
   } finally {
     restore()
   }

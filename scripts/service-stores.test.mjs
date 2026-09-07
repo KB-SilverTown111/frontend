@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { accountsApi } from '../src/api/accounts.js'
 import { billsApi } from '../src/api/bills.js'
+import { mobileBranchesApi } from '../src/api/mobileBranches.js'
 import { remindersApi } from '../src/api/reminders.js'
 import { transfersApi } from '../src/api/transfers.js'
 import { useBillStore } from '../src/stores/bill.js'
@@ -39,6 +40,51 @@ test('service data store loads account, bill summary, and reminder collections',
     accountsApi.list = originalList
     remindersApi.list = originalReminders
     billsApi.monthlySummary = originalSummary
+  }
+})
+
+test('service data store loads nearby mobile branches with location coordinates', async () => {
+  setup()
+  const originalNearby = mobileBranchesApi.nearby
+  const request = { latitude: 37.5001, longitude: 127.0369 }
+  const response = {
+    items: [
+      {
+        branchId: 'mobile-2',
+        name: 'KB 이동점포 송파 데모 2호',
+        distanceMeters: 2400,
+      },
+      {
+        branchId: 'mobile-1',
+        name: 'KB 이동점포 강남 데모 1호',
+        distanceMeters: 820,
+      },
+      {
+        branchId: 'mobile-unknown',
+        name: '거리 미확인 이동점포',
+        distanceMeters: null,
+      },
+    ],
+  }
+  let captured
+  mobileBranchesApi.nearby = async (params) => {
+    captured = params
+    return response
+  }
+
+  try {
+    const store = useServiceDataStore()
+    await store.loadMobileBranches(request)
+
+    assert.deepEqual(captured, request)
+    assert.deepEqual(
+      store.mobileBranches.map(({ branchId }) => branchId),
+      ['mobile-1', 'mobile-2', 'mobile-unknown'],
+    )
+    assert.equal(store.loading.mobileBranches, false)
+    assert.equal(store.errors.mobileBranches, null)
+  } finally {
+    mobileBranchesApi.nearby = originalNearby
   }
 })
 
