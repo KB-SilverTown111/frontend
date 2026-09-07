@@ -19,6 +19,8 @@ export const mockAuthApi = {
     })
   },
 
+  async logout() {},
+
   async saveVoiceSettings(request) {
     return parseVoiceSettingsResponse({
       ...request,

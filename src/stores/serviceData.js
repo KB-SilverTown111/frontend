@@ -23,6 +23,7 @@ export const useServiceDataStore = defineStore('service-data', () => {
     monthlySummary: null,
     reminders: null,
   })
+  let resetVersion = 0
 
   function responseItems(value) {
     if (Array.isArray(value)) return value
@@ -30,17 +31,19 @@ export const useServiceDataStore = defineStore('service-data', () => {
   }
 
   async function runResource(key, request, assign) {
+    const requestVersion = resetVersion
     loading[key] = true
     errors[key] = null
     try {
       const value = await request()
-      assign(value)
+      if (requestVersion === resetVersion) assign(value)
       return value
     } catch (error) {
-      errors[key] = normalizeApiError(error)
-      throw errors[key]
+      const normalizedError = normalizeApiError(error)
+      if (requestVersion === resetVersion) errors[key] = normalizedError
+      throw normalizedError
     } finally {
-      loading[key] = false
+      if (requestVersion === resetVersion) loading[key] = false
     }
   }
 
@@ -96,6 +99,26 @@ export const useServiceDataStore = defineStore('service-data', () => {
     )
   }
 
+  function reset() {
+    resetVersion += 1
+    accounts.value = []
+    bills.value = []
+    monthlySummary.value = null
+    reminders.value = []
+    Object.assign(loading, {
+      accounts: false,
+      bills: false,
+      monthlySummary: false,
+      reminders: false,
+    })
+    Object.assign(errors, {
+      accounts: null,
+      bills: null,
+      monthlySummary: null,
+      reminders: null,
+    })
+  }
+
   return {
     accounts,
     bills,
@@ -108,5 +131,6 @@ export const useServiceDataStore = defineStore('service-data', () => {
     loadMonthlySummary,
     loadReminders,
     createReminder,
+    reset,
   }
 })

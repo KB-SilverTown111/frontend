@@ -711,6 +711,17 @@
   line-height: 1;
 }
 
+.my-page-logout {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.my-page-logout:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .transfer-device button,
 .service-home-device button,
 .service-route-device button {

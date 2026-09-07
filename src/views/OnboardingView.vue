@@ -16,7 +16,10 @@ import {
   formatPhoneNumber,
   resolvePostcodeSelection,
 } from '@/features/onboarding/contract.js'
-import { requestPermissionsInOrder } from '@/features/onboarding/permissions.js'
+import {
+  arePermissionsGranted,
+  requestPermissionsInOrder,
+} from '@/features/onboarding/permissions.js'
 import { loadPostcodeApi } from '@/features/onboarding/postcode.js'
 import {
   areConsentDetailsAgreed,
@@ -184,6 +187,42 @@ async function requestDevicePermissions() {
   })
 }
 
+async function areDevicePermissionsGranted() {
+  if (!Capacitor.isNativePlatform()) return true
+
+  try {
+    const [contacts, camera, location, microphone] = await Promise.all([
+      Contacts.checkPermissions(),
+      Camera.checkPermissions(),
+      Geolocation.checkPermissions(),
+      SpeechRecognition.checkPermissions(),
+    ])
+
+    return arePermissionsGranted({
+      contacts: contacts?.contacts,
+      camera: camera?.camera,
+      location: location?.location,
+      microphone: microphone?.speechRecognition,
+    })
+  } catch {
+    return false
+  }
+}
+
+async function submitOnboarding() {
+  if (permissionsRequesting.value) return
+  permissionsRequesting.value = true
+  try {
+    await requestDevicePermissions()
+    const result = await store.submit()
+    if (!result.ok) return
+    store.finishUiFlow()
+    return go('complete')
+  } finally {
+    permissionsRequesting.value = false
+  }
+}
+
 function closePostcode() {
   postcodeOpen.value = false
   postcodeLayer.value?.replaceChildren()
@@ -254,20 +293,12 @@ async function handlePrimary() {
   }
   if (id === 'bank-select') return selectedBank.value && go('bank-account')
   if (id === 'phone') return validateAndGo(id, 'emergency-contact')
-  if (id === 'emergency-contact') return validateAndGo(id, 'permissions')
-  if (id === 'permissions') {
-    if (permissionsRequesting.value) return
-    permissionsRequesting.value = true
-    try {
-      await requestDevicePermissions()
-      const result = await store.submit()
-      if (!result.ok) return
-      store.finishUiFlow()
-      return go('complete')
-    } finally {
-      permissionsRequesting.value = false
-    }
+  if (id === 'emergency-contact') {
+    if (!store.validate(id)) return
+    if (await areDevicePermissionsGranted()) return submitOnboarding()
+    return go('permissions')
   }
+  if (id === 'permissions') return submitOnboarding()
   if (id === 'complete') {
     requestAppIntent('home')
     return router.push({ name: 'transfer-home' })
@@ -320,7 +351,7 @@ function handleSecondary() {
     :busy="permissionsRequesting || store.status === 'loading'"
     :description="screenCopy[1]"
     :hide-back="screenId === 'login'"
-    :error-message="store.submitError?.message || ''"
+    :error-message="store.submitError?.message || store.authStorageWarning || ''"
     :primary-label="primaryLabel"
     :progress="progress"
     :secondary-label="secondaryLabel"

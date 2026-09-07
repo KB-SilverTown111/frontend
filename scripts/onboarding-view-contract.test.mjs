@@ -2,22 +2,37 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
+async function readOnboardingView() {
+  return (
+    await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  ).replace(/\r\n/g, '\n')
+}
+
 test('permissions step submits signup before completing the UI flow', async () => {
-  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
-  const permissionsBranch = source.match(
-    /if\s*\(id\s*===\s*'permissions'\)\s*\{([\s\S]*?)\n\s*\}\n\s*if\s*\(id\s*===\s*'complete'\)/,
+  const source = await readOnboardingView()
+  const submitFunction = source.match(
+    /async function submitOnboarding\(\)\s*\{([\s\S]*?)\n\s*\}\n\s*function closePostcode/,
   )?.[1]
 
-  assert.ok(permissionsBranch)
-  assert.match(permissionsBranch, /const result = await store\.submit\(\)/)
-  assert.match(permissionsBranch, /if \(!result\.ok\)/)
+  assert.ok(submitFunction)
+  assert.match(submitFunction, /const result = await store\.submit\(\)/)
+  assert.match(submitFunction, /if \(!result\.ok\)/)
   assert.ok(
-    permissionsBranch.indexOf('store.submit()') < permissionsBranch.indexOf('store.finishUiFlow()'),
+    submitFunction.indexOf('store.submit()') < submitFunction.indexOf('store.finishUiFlow()'),
   )
+  assert.match(source, /if \(id === 'permissions'\) return submitOnboarding\(\)/)
+})
+
+test('already granted native permissions skip the permissions screen', async () => {
+  const source = await readOnboardingView()
+
+  assert.match(source, /async function areDevicePermissionsGranted\(\)/)
+  assert.match(source, /if \(await areDevicePermissionsGranted\(\)\) return submitOnboarding\(\)/)
+  assert.match(source, /if \(id === 'permissions'\) return submitOnboarding\(\)/)
 })
 
 test('required consent detail screens do not render guidance cards', async () => {
-  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const source = await readOnboardingView()
 
   assert.doesNotMatch(source, /optionalConsentGuide/)
   assert.doesNotMatch(source, /class="guide-card/)
@@ -28,7 +43,7 @@ test('onboarding shell does not render question-mark help controls', async () =>
     new URL('../src/components/onboarding/OnboardingShell.vue', import.meta.url),
     'utf8',
   )
-  const view = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const view = await readOnboardingView()
 
   assert.doesNotMatch(shell, /aria-label="도움말"/)
   assert.doesNotMatch(shell, /<span>\?<\/span>도움/)
@@ -36,13 +51,13 @@ test('onboarding shell does not render question-mark help controls', async () =>
 })
 
 test('login is an entry screen without a back button', async () => {
-  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const source = await readOnboardingView()
 
   assert.match(source, /:hide-back="screenId === 'login'"/)
 })
 
 test('login exposes a persistent two-level font size picker', async () => {
-  const view = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const view = await readOnboardingView()
   const service = await readFile(new URL('../src/services/fontScale.js', import.meta.url), 'utf8')
 
   assert.match(view, /font-size-picker/)
@@ -54,7 +69,7 @@ test('login exposes a persistent two-level font size picker', async () => {
 })
 
 test('start screen shows back navigation to login', async () => {
-  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const source = await readOnboardingView()
   const start = source.indexOf('function goBack()')
   const end = source.indexOf('\n}\n\nasync function handlePrimary', start)
 
@@ -64,7 +79,7 @@ test('start screen shows back navigation to login', async () => {
 })
 
 test('onboarding shell receives a readable progress indicator', async () => {
-  const view = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const view = await readOnboardingView()
   const shell = await readFile(
     new URL('../src/components/onboarding/OnboardingShell.vue', import.meta.url),
     'utf8',
@@ -110,7 +125,7 @@ test('onboarding cards use a thicker visible border', async () => {
 })
 
 test('onboarding surfaces do not render guidance cards', async () => {
-  const view = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const view = await readOnboardingView()
   const help = await readFile(
     new URL('../src/views/OnboardingHelpView.vue', import.meta.url),
     'utf8',
@@ -121,7 +136,7 @@ test('onboarding surfaces do not render guidance cards', async () => {
 })
 
 test('going back clears a stale submit error before changing onboarding steps', async () => {
-  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const source = await readOnboardingView()
   const start = source.indexOf('function goBack()')
   const end = source.indexOf('\n}\n\nasync function handlePrimary', start)
 
@@ -131,7 +146,7 @@ test('going back clears a stale submit error before changing onboarding steps', 
 })
 
 test('account number input is visible while retaining a numeric keyboard hint', async () => {
-  const source = await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+  const source = await readOnboardingView()
   const start = source.indexOf('aria-label="계좌번호"')
   const end = source.indexOf('</label>', start)
 

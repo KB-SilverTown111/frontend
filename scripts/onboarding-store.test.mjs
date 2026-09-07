@@ -3,8 +3,16 @@ import test from 'node:test'
 
 import { createPinia, setActivePinia } from 'pinia'
 
-import { clearAuthSession } from '../src/api/authStorage.js'
+import { Capacitor } from '@capacitor/core'
+import { SecureStorage } from '@aparajita/capacitor-secure-storage'
+
+import { clearAuthSession, loadAuthSession } from '../src/api/authStorage.js'
+import { onboardingApi } from '../src/api/onboarding.js'
+import { useBillStore } from '../src/stores/bill.js'
 import { useOnboardingStore } from '../src/stores/onboarding.js'
+import { useServiceDataStore } from '../src/stores/serviceData.js'
+import { useTransferStore } from '../src/stores/transfer.js'
+import { useVoiceStore } from '../src/stores/voice.js'
 
 test('store persists the signup auth session without a follow-up voice settings request', async () => {
   setActivePinia(createPinia())
@@ -78,6 +86,148 @@ test('store logs in with the ID and password fields', async () => {
   assert.equal(result.ok, true)
   assert.equal(store.authResult.userId, 'mock-user-001')
   assert.equal(store.status, 'success')
+})
+
+test('store logs out by clearing the authenticated session and transient state', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  store.draft.loginId = 'silveruser'
+  store.draft.password = 'safe-pass-123'
+  await store.login()
+
+  const logout = store.logout
+  assert.equal(typeof logout, 'function')
+
+  const originalLogout = onboardingApi.logout
+  let logoutRequest
+  onboardingApi.logout = async (request) => {
+    logoutRequest = request
+  }
+
+  let result
+  try {
+    result = await logout()
+  } finally {
+    onboardingApi.logout = originalLogout
+  }
+
+  assert.equal(result.ok, true)
+  assert.deepEqual(logoutRequest, { refreshToken: 'mock-refresh-token' })
+  assert.equal(await loadAuthSession(), null)
+  assert.equal(store.authResult, null)
+  assert.equal(store.status, 'idle')
+  assert.equal(store.draft.loginId, '')
+  assert.equal(store.draft.password, '')
+})
+
+test('store completes local logout when remote session revocation fails', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  store.draft.loginId = 'silveruser'
+  store.draft.password = 'safe-pass-123'
+  await store.login()
+
+  const logout = store.logout
+  assert.equal(typeof logout, 'function')
+
+  const originalLogout = onboardingApi.logout
+  onboardingApi.logout = async () => {
+    throw new Error('network failure')
+  }
+
+  try {
+    const result = await logout()
+    assert.equal(result.ok, true)
+  } finally {
+    onboardingApi.logout = originalLogout
+  }
+
+  assert.equal(await loadAuthSession(), null)
+  assert.equal(store.authResult, null)
+})
+
+test('store resets every user-scoped store during logout', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  const serviceData = useServiceDataStore()
+  const transfer = useTransferStore()
+  const bill = useBillStore()
+  const voice = useVoiceStore()
+
+  store.authResult = { refreshToken: 'refresh-token' }
+  serviceData.accounts = [{ accountId: 'account-1', balance: 100000 }]
+  serviceData.bills = [{ billId: 'bill-1', amount: 48200 }]
+  serviceData.monthlySummary = { totalAmount: 48200 }
+  serviceData.reminders = [{ reminderId: 'reminder-1' }]
+  serviceData.loading.accounts = true
+  serviceData.errors.accounts = { message: 'old error' }
+  transfer.sessionId = 'session-1'
+  transfer.selectedRecipient = { recipientId: 'recipient-1' }
+  transfer.fromAccount = { accountId: 'account-1' }
+  transfer.draftAmount = 50000
+  transfer.result = { transactionId: 'transaction-1' }
+  bill.billId = 'bill-1'
+  bill.bill = { payee: '한국전력' }
+  bill.confirmationToken = 'confirmation-token'
+  voice.sessionId = 'voice-session-1'
+  voice.session = { status: 'OPEN' }
+  voice.transcript = '송금해 주세요'
+  voice.settings.ttsVoice = 'en-US-Test'
+
+  await store.logout()
+
+  assert.deepEqual(serviceData.accounts, [])
+  assert.deepEqual(serviceData.bills, [])
+  assert.equal(serviceData.monthlySummary, null)
+  assert.deepEqual(serviceData.reminders, [])
+  assert.equal(serviceData.loading.accounts, false)
+  assert.equal(serviceData.errors.accounts, null)
+  assert.equal(transfer.sessionId, '')
+  assert.equal(transfer.selectedRecipient, null)
+  assert.equal(transfer.fromAccount, null)
+  assert.equal(transfer.draftAmount, null)
+  assert.equal(transfer.result, null)
+  assert.equal(bill.billId, '')
+  assert.equal(bill.bill, null)
+  assert.equal(bill.confirmationToken, '')
+  assert.equal(voice.sessionId, '')
+  assert.equal(voice.session, null)
+  assert.equal(voice.transcript, '')
+  assert.equal(voice.settings.ttsVoice, 'ko-KR-JiMinNeural')
+})
+
+test('store reports when native auth storage cannot be cleared', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  store.authResult = { refreshToken: 'refresh-token' }
+
+  const originalIsNativePlatform = Capacitor.isNativePlatform
+  const originalRemove = SecureStorage.remove
+  Capacitor.isNativePlatform = () => true
+  SecureStorage.remove = async () => {
+    throw new Error('secure storage unavailable')
+  }
+
+  try {
+    const result = await store.logout()
+
+    assert.equal(result.ok, false)
+    assert.equal(result.authStorageCleared, false)
+    assert.equal(store.authResult, null)
+    assert.match(store.authStorageWarning, /삭제하지 못했어요/)
+  } finally {
+    Capacitor.isNativePlatform = originalIsNativePlatform
+    SecureStorage.remove = originalRemove
+    await clearAuthSession()
+  }
 })
 
 test('store restores and clears the authenticated session across app instances', async () => {

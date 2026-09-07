@@ -2,9 +2,34 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  arePermissionsGranted,
   NATIVE_PERMISSION_ORDER,
   requestPermissionsInOrder,
 } from '../src/features/onboarding/permissions.js'
+
+test('granted and limited native permissions are treated as already available', () => {
+  assert.equal(
+    arePermissionsGranted({
+      contacts: 'granted',
+      camera: 'limited',
+      location: 'granted',
+      microphone: 'granted',
+    }),
+    true,
+  )
+})
+
+test('any non-granted native permission keeps the permissions step', () => {
+  assert.equal(
+    arePermissionsGranted({
+      contacts: 'granted',
+      camera: 'prompt',
+      location: 'granted',
+      microphone: 'granted',
+    }),
+    false,
+  )
+})
 
 test('native permissions are requested in the UI order and one failure does not stop the flow', async () => {
   const calls = []

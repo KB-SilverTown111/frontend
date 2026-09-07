@@ -11,6 +11,12 @@ import {
   captureSpeech,
 } from '../services/voiceStt.js'
 
+const DEFAULT_VOICE_SETTINGS = {
+  ttsVoice: 'ko-KR-JiMinNeural',
+  speechRateMultiplier: 1.05,
+  volumeMultiplier: 1,
+}
+
 export const useVoiceStore = defineStore('voice', () => {
   const sessionId = ref('')
   const session = ref(null)
@@ -20,11 +26,7 @@ export const useVoiceStore = defineStore('voice', () => {
   const listening = ref(false)
   const speaking = ref(false)
   const transcript = ref('')
-  const settings = reactive({
-    ttsVoice: 'ko-KR-JiMinNeural',
-    speechRateMultiplier: 1.05,
-    volumeMultiplier: 1,
-  })
+  const settings = reactive({ ...DEFAULT_VOICE_SETTINGS })
   const error = ref(null)
   const busy = ref(false)
 
@@ -256,6 +258,7 @@ export const useVoiceStore = defineStore('voice', () => {
     speechToken.value = null
     listening.value = false
     transcript.value = ''
+    Object.assign(settings, DEFAULT_VOICE_SETTINGS)
     error.value = null
     busy.value = false
   }

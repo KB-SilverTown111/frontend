@@ -1,10 +1,27 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { FONT_SCALE, readFontScale } from '@/services/fontScale.js'
+import { useOnboardingStore } from '@/stores/onboarding.js'
 
+const router = useRouter()
+const onboardingStore = useOnboardingStore()
 const fontScale = readFontScale()
 const fontScaleLabel = computed(() => (fontScale === FONT_SCALE.large ? '큰 글씨' : '기본 크기'))
+const isLoggingOut = ref(false)
+
+async function handleLogout() {
+  if (isLoggingOut.value) return
+
+  isLoggingOut.value = true
+  try {
+    await onboardingStore.logout()
+    await router.replace({ name: 'onboarding', params: { stepId: 'login' } })
+  } finally {
+    isLoggingOut.value = false
+  }
+}
 </script>
 
 <template>
@@ -51,6 +68,20 @@ const fontScaleLabel = computed(() => (fontScale === FONT_SCALE.large ? '큰 글
             </span>
             <b aria-hidden="true">›</b>
           </RouterLink>
+          <button
+            :aria-busy="isLoggingOut"
+            :aria-label="isLoggingOut ? '로그아웃 중' : '로그아웃'"
+            class="my-page-card my-page-logout"
+            :disabled="isLoggingOut"
+            type="button"
+            @click="handleLogout"
+          >
+            <span>
+              <strong>{{ isLoggingOut ? '로그아웃 중…' : '로그아웃' }}</strong>
+              <small>현재 기기에서 안전하게 로그아웃합니다.</small>
+            </span>
+            <b aria-hidden="true">↪</b>
+          </button>
         </div>
       </main>
 
