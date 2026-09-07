@@ -3,7 +3,8 @@ import test from 'node:test'
 
 import { createPinia, setActivePinia } from 'pinia'
 
-import { clearAuthSession } from '../src/api/authStorage.js'
+import { clearAuthSession, loadAuthSession } from '../src/api/authStorage.js'
+import { onboardingApi } from '../src/api/onboarding.js'
 import { useOnboardingStore } from '../src/stores/onboarding.js'
 
 test('store persists the signup auth session without a follow-up voice settings request', async () => {
@@ -78,6 +79,68 @@ test('store logs in with the ID and password fields', async () => {
   assert.equal(result.ok, true)
   assert.equal(store.authResult.userId, 'mock-user-001')
   assert.equal(store.status, 'success')
+})
+
+test('store logs out by clearing the authenticated session and transient state', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  store.draft.loginId = 'silveruser'
+  store.draft.password = 'safe-pass-123'
+  await store.login()
+
+  const logout = store.logout
+  assert.equal(typeof logout, 'function')
+
+  const originalLogout = onboardingApi.logout
+  let logoutRequest
+  onboardingApi.logout = async (request) => {
+    logoutRequest = request
+  }
+
+  let result
+  try {
+    result = await logout()
+  } finally {
+    onboardingApi.logout = originalLogout
+  }
+
+  assert.equal(result.ok, true)
+  assert.deepEqual(logoutRequest, { refreshToken: 'mock-refresh-token' })
+  assert.equal(await loadAuthSession(), null)
+  assert.equal(store.authResult, null)
+  assert.equal(store.status, 'idle')
+  assert.equal(store.draft.loginId, '')
+  assert.equal(store.draft.password, '')
+})
+
+test('store completes local logout when remote session revocation fails', async () => {
+  await clearAuthSession()
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  store.draft.loginId = 'silveruser'
+  store.draft.password = 'safe-pass-123'
+  await store.login()
+
+  const logout = store.logout
+  assert.equal(typeof logout, 'function')
+
+  const originalLogout = onboardingApi.logout
+  onboardingApi.logout = async () => {
+    throw new Error('network failure')
+  }
+
+  try {
+    const result = await logout()
+    assert.equal(result.ok, true)
+  } finally {
+    onboardingApi.logout = originalLogout
+  }
+
+  assert.equal(await loadAuthSession(), null)
+  assert.equal(store.authResult, null)
 })
 
 test('store restores and clears the authenticated session across app instances', async () => {

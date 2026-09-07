@@ -79,6 +79,20 @@ export const useOnboardingStore = defineStore('onboarding', {
       }
     },
 
+    async logout() {
+      try {
+        const session = this.authResult || (await loadAuthSession())
+        if (session?.refreshToken) {
+          await onboardingApi.logout({ refreshToken: session.refreshToken })
+        }
+      } catch {
+        // Clear the local session even when the server cannot be reached.
+      }
+
+      await this.reset()
+      return { ok: true }
+    },
+
     async persistAuthSession(authResult) {
       try {
         this.authResult = await saveAuthSession(authResult)

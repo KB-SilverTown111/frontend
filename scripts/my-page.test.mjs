@@ -65,6 +65,12 @@ test('font size setting remains backed by the shared service', () => {
   assert.match(myPageSource, /readFontScale/)
 })
 
+test('my page exposes a logout action', () => {
+  assert.match(myPageSource, /<button[\s\S]*my-page-logout/)
+  assert.match(myPageSource, /@click="handleLogout"/)
+  assert.match(myPageSource, /로그아웃/)
+})
+
 test('production navigation exposes my page as the rightmost fourth item', () => {
   for (const source of [transferHomeSource, serviceHomeSource, routeViewSource]) {
     assert.match(source, /class="app-bottom-nav four-items/)
