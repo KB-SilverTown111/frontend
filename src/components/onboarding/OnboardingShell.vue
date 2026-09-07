@@ -77,28 +77,27 @@ defineEmits(['back', 'home', 'bills', 'living', 'mypage', 'primary', 'secondary'
         </div>
 
         <slot />
+        <footer class="app-actions onboarding-actions">
+          <slot name="actions">
+            <Button
+              class="w-full"
+              :disabled="busy"
+              @click="$emit('primary')"
+            >
+              {{ busy ? '처리하고 있어요…' : primaryLabel }}
+            </Button>
+            <Button
+              v-if="secondaryLabel"
+              class="w-full"
+              :disabled="busy"
+              variant="secondary"
+              @click="$emit('secondary')"
+            >
+              {{ secondaryLabel }}
+            </Button>
+          </slot>
+        </footer>
       </main>
-
-      <footer class="app-actions onboarding-actions">
-        <slot name="actions">
-          <Button
-            class="w-full"
-            :disabled="busy"
-            @click="$emit('primary')"
-          >
-            {{ busy ? '처리하고 있어요…' : primaryLabel }}
-          </Button>
-          <Button
-            v-if="secondaryLabel"
-            class="w-full"
-            :disabled="busy"
-            variant="secondary"
-            @click="$emit('secondary')"
-          >
-            {{ secondaryLabel }}
-          </Button>
-        </slot>
-      </footer>
 
       <nav
         v-if="bottomNav"

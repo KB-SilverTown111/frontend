@@ -32,6 +32,11 @@ export const routes = [
     component: () => import('@/views/OnboardingHelpView.vue'),
   },
   {
+    path: '/font-size',
+    name: 'font-size',
+    component: () => import('@/views/MyPageFontSizeView.vue'),
+  },
+  {
     path: '/onboarding/:stepId',
     name: 'onboarding',
     component: () => import('@/views/OnboardingView.vue'),

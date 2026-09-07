@@ -1,11 +1,16 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { FONT_SCALE, applyFontScale, readFontScale, saveFontScale } from '@/services/fontScale.js'
 
+const route = useRoute()
 const router = useRouter()
+const isLoginFontSize = computed(() => route.name === 'font-size')
+const backRoute = computed(() =>
+  isLoginFontSize.value ? { name: 'onboarding', params: { stepId: 'login' } } : { name: 'my-page' },
+)
 const fontScale = ref(readFontScale())
 applyFontScale(fontScale.value)
 
@@ -15,7 +20,7 @@ function setFontScale(value) {
 }
 
 function goBack() {
-  return router.push({ name: 'my-page' })
+  return router.push(backRoute.value)
 }
 </script>
 
@@ -24,7 +29,7 @@ function goBack() {
     <article class="mobile-app-shell my-page-device">
       <header class="app-header">
         <Button
-          aria-label="마이페이지로 돌아가기"
+          :aria-label="isLoginFontSize ? '로그인으로 돌아가기' : '마이페이지로 돌아가기'"
           class="app-back-button"
           size="icon"
           variant="secondary"
@@ -75,6 +80,7 @@ function goBack() {
       </main>
 
       <nav
+        v-if="!isLoginFontSize"
         aria-label="주요 메뉴"
         class="app-bottom-nav four-items my-page-bottom-nav"
       >
