@@ -784,6 +784,17 @@
 .reminder-form {
   display: grid;
   gap: 2px;
+  min-width: 0;
+}
+
+.reminder-form .service-route-input-field {
+  min-width: 0;
+}
+
+.reminder-form .service-route-input-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .reminder-form-hint {
