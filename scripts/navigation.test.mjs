@@ -51,9 +51,24 @@ test('onboarding back, help, font-size, and service back controls share history-
   assert.match(serviceRouteSource, /goBackOrReplace\(/)
 })
 
+test('service back control describes history-first navigation', () => {
+  assert.match(serviceRouteSource, /aria-label="이전 화면"/)
+})
+
 test('top-level tabs replace history entries in every authenticated shell', () => {
-  for (const source of [transferHomeSource, serviceHomeSource, serviceRouteSource, myPageSource]) {
-    assert.match(source, /<RouterLink\s+replace[\s\S]*name: 'transfer-home'/)
+  const sources = [
+    transferHomeSource,
+    serviceHomeSource,
+    serviceRouteSource,
+    myPageSource,
+    fontSizeSource,
+  ]
+  const targets = ['transfer-home', 'bills-home', 'living-home', 'my-page']
+
+  for (const source of sources) {
+    for (const target of targets) {
+      assert.match(source, new RegExp(`<RouterLink\\s+replace[\\s\\S]*name: '${target}'`))
+    }
   }
 })
 

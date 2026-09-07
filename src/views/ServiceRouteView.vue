@@ -872,7 +872,7 @@ onMounted(() => {
     <article class="mobile-app-shell service-route-device">
       <header class="app-header">
         <RouterLink
-          :aria-label="isMyPageDetail ? '마이페이지로' : '서비스 홈으로'"
+          aria-label="이전 화면"
           class="app-header-button service-route-back"
           :to="backRoute"
           @click.prevent="goBack"
