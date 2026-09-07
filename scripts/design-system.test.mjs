@@ -6,8 +6,20 @@ const viewSource = readFileSync(
   new URL('../src/views/DesignSystemView.vue', import.meta.url),
   'utf8',
 )
+const appSource = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+const actionViewSources = [
+  'src/components/onboarding/OnboardingShell.vue',
+  'src/views/OnboardingHelpView.vue',
+  'src/views/TransferHomeView.vue',
+  'src/views/ServiceHomeView.vue',
+  'src/views/ServiceRouteView.vue',
+].map((path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'))
 const globalStyleSource = readFileSync(
   new URL('../src/styles/globals.css', import.meta.url),
+  'utf8',
+)
+const appLayoutStyleSource = readFileSync(
+  new URL('../src/styles/onboarding.css', import.meta.url),
   'utf8',
 )
 const cardSource = readFileSync(
@@ -50,6 +62,71 @@ test('shadcn primitives use the updated card and touch-target defaults', () => {
   assert.match(inputSource, /min-h-16/)
   assert.match(inputSource, /border-2/)
   assert.match(alertTitleSource, /text-\[length:var\(--font-size-action\)\]/)
+})
+
+test('shared inputs use the brand focus treatment', () => {
+  assert.match(inputSource, /focus-visible:border-primary/)
+  assert.match(inputSource, /focus-visible:bg-muted/)
+  assert.match(inputSource, /focus-visible:shadow-\[inset_0_0_0_1px_var\(--primary\)\]/)
+  assert.match(inputSource, /focus-visible:outline-none/)
+})
+
+test('focused inputs override the global focus outline with the brand border', () => {
+  assert.match(
+    globalStyleSource,
+    /input:focus-visible\s*\{[\s\S]*?outline:\s*none;[\s\S]*?border-color:\s*var\(--primary\);/,
+  )
+})
+
+test('mobile app shell keeps its bottom chrome at the stable app viewport', () => {
+  assert.match(appLayoutStyleSource, /min-height:\s*100svh;/)
+  assert.match(
+    appLayoutStyleSource,
+    /\.mobile-app-shell\s*\{[\s\S]*?height:\s*min\(881px, calc\(var\(--app-stable-height, 100svh\) - 48px\)\);[\s\S]*?min-height:\s*min\(640px, var\(--app-stable-height, 100svh\)\);/,
+  )
+  assert.match(appLayoutStyleSource, /var\(--app-stable-height, 100svh\)/)
+  assert.doesNotMatch(appLayoutStyleSource, /100dvh/)
+  assert.match(appLayoutStyleSource, /\.app-bottom-nav\s*\{[\s\S]*?flex:\s*0 0 auto;/)
+})
+
+test('app root holds the initial shell height while the keyboard resizes the webview', () => {
+  assert.match(appSource, /onMounted/)
+  assert.match(appSource, /window\.innerHeight/)
+  assert.match(appSource, /--app-stable-height/)
+  assert.match(appSource, /visualViewport\?\.addEventListener\('resize'/)
+  assert.match(appSource, /textFieldFocused\s*&&\s*currentHeight\s*<=\s*stableHeight\s*\* 0\.8/)
+  assert.match(appSource, /onBeforeUnmount/)
+  assert.match(
+    appLayoutStyleSource,
+    /height:\s*min\(881px, calc\(var\(--app-stable-height, 100svh\) - 48px\)\);/,
+  )
+  assert.match(appLayoutStyleSource, /height:\s*var\(--app-stable-height, 100svh\);/)
+})
+
+test('primary action buttons scroll with the screen body instead of floating over content', () => {
+  for (const source of actionViewSources) {
+    assert.match(source, /<main[\s\S]*<footer[\s\S]*<\/main>/)
+    assert.doesNotMatch(source, /<\/main>[\s\S]*<footer/)
+  }
+  assert.match(
+    appLayoutStyleSource,
+    /\.app-actions\s*\{[\s\S]*?margin-top:\s*8px;[\s\S]*?padding:\s*0 0 calc\(22px \+ var\(--app-safe-area-bottom\)\);/,
+  )
+})
+
+test('app screens reserve scroll space and use one focus treatment for native fields', () => {
+  assert.match(
+    appLayoutStyleSource,
+    /\.app-main\s*\{[\s\S]*?padding:\s*26px 24px 32px;[\s\S]*?overscroll-behavior-y:\s*contain;[\s\S]*?scroll-padding-block:\s*24px 32px;/,
+  )
+  assert.match(
+    appLayoutStyleSource,
+    /\.app-main :where\(input, select, textarea\)\s*\{[\s\S]*?scroll-margin-block:\s*24px 32px;/,
+  )
+  assert.match(
+    appLayoutStyleSource,
+    /\.app-main :where\(input, select, textarea\):focus-visible\s*\{[\s\S]*?background:\s*var\(--muted\);[\s\S]*?box-shadow:\s*inset 0 0 0 1px var\(--primary\);/,
+  )
 })
 
 test('typography samples follow the active font-size token', () => {

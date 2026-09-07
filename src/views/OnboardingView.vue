@@ -31,7 +31,7 @@ import {
   setConsentDecision,
 } from '@/features/onboarding/screens.js'
 import { getAdjacentStep, getOnboardingDisplayProgress } from '@/features/onboarding/steps.js'
-import { FONT_SCALE, applyFontScale, readFontScale, saveFontScale } from '@/services/fontScale.js'
+import { FONT_SCALE, applyFontScale, readFontScale } from '@/services/fontScale.js'
 import { useOnboardingStore } from '@/stores/onboarding.js'
 
 const route = useRoute()
@@ -104,11 +104,6 @@ const secondaryLabel = computed(
       'notification-denied': '괜찮아요',
     })[screenId.value] || '',
 )
-
-function setFontScale(value) {
-  fontScale.value = saveFontScale(value)
-  applyFontScale(fontScale.value)
-}
 
 watch(
   screenId,
@@ -217,7 +212,8 @@ async function submitOnboarding() {
     const result = await store.submit()
     if (!result.ok) return
     store.finishUiFlow()
-    return go('complete')
+    requestAppIntent('home')
+    return router.push({ name: 'transfer-home' })
   } finally {
     permissionsRequesting.value = false
   }
@@ -860,34 +856,17 @@ function handleSecondary() {
       v-else-if="screenId === 'login'"
       class="figma-stack"
     >
-      <fieldset class="font-size-picker">
-        <legend>글씨 크기</legend>
-        <p>보기 편한 크기를 선택해 주세요.</p>
-        <div
-          class="font-size-options"
-          role="group"
-          aria-label="글씨 크기 선택"
-        >
-          <button
-            :aria-pressed="fontScale === FONT_SCALE.standard"
-            class="font-size-option"
-            :class="{ selected: fontScale === FONT_SCALE.standard }"
-            type="button"
-            @click="setFontScale(FONT_SCALE.standard)"
-          >
-            기본 크기
-          </button>
-          <button
-            :aria-pressed="fontScale === FONT_SCALE.large"
-            class="font-size-option"
-            :class="{ selected: fontScale === FONT_SCALE.large }"
-            type="button"
-            @click="setFontScale(FONT_SCALE.large)"
-          >
-            큰 글씨
-          </button>
-        </div>
-      </fieldset>
+      <RouterLink
+        aria-label="글씨 크기 설정 열기"
+        class="my-page-card login-font-size-card"
+        :to="{ name: 'font-size' }"
+      >
+        <span>
+          <strong>글씨 크기</strong>
+          <small>{{ fontScale === FONT_SCALE.large ? '큰 글씨' : '기본 크기' }}</small>
+        </span>
+        <b aria-hidden="true">›</b>
+      </RouterLink>
       <label class="input-row">
         <Input
           v-model="store.draft.loginId"

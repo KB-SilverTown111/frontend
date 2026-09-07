@@ -65,21 +65,20 @@ function requestHelp(mode) {
         >
           {{ helpStatus }}
         </p>
+        <footer class="app-actions">
+          <Button
+            class="w-full"
+            @click="requestHelp('voice')"
+            >음성으로 도움받기</Button
+          >
+          <Button
+            class="w-full"
+            variant="secondary"
+            @click="requestHelp('text')"
+            >글자로 질문하기</Button
+          >
+        </footer>
       </main>
-
-      <footer class="app-actions">
-        <Button
-          class="w-full"
-          @click="requestHelp('voice')"
-          >음성으로 도움받기</Button
-        >
-        <Button
-          class="w-full"
-          variant="secondary"
-          @click="requestHelp('text')"
-          >글자로 질문하기</Button
-        >
-      </footer>
     </article>
   </div>
 </template>
