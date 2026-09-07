@@ -318,7 +318,7 @@ test('production supporting text stays readable beside the large action labels',
   )
 })
 
-test('mobile branch screen loads nearby data and renders the agreed card fields', () => {
+test('mobile branch screen loads nearby data, renders card fields, and guards direct detail entry', () => {
   assert.match(routeViewSource, /getCurrentLocation/)
   assert.match(routeViewSource, /loadMobileBranches/)
   assert.match(routeViewSource, /mobileBranches/)
@@ -332,6 +332,15 @@ test('mobile branch screen loads nearby data and renders the agreed card fields'
   assert.match(routeViewSource, /mobileBranchLocationLoading/)
   assert.match(routeViewSource, /mobileBranchPrimaryDisabled/)
   assert.match(routeViewSource, /:disabled="isBusy \|\| mobileBranchPrimaryDisabled"/)
+  const loadScreenSource = routeViewSource.slice(
+    routeViewSource.indexOf('async function loadScreen()'),
+    routeViewSource.indexOf('async function go('),
+  )
+
+  assert.match(
+    loadScreenSource,
+    /service\.value === 'living'[\s\S]*?screenId\.value === '4-11'[\s\S]*?!serviceData\.mobileBranches\.length[\s\S]*?await go\(\{\s*name: 'living-screen',\s*params: \{ screenId: '4-10' \} \}\)[\s\S]*?screen\.value = nextScreen/,
+  )
 })
 
 test('mobile branch presentation renders the three agreed MVP data shapes', () => {

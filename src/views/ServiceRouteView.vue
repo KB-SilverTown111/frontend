@@ -473,6 +473,15 @@ async function loadScreen() {
     }
     if (sequence !== loadSequence) return
 
+    if (
+      service.value === 'living' &&
+      screenId.value === '4-11' &&
+      !serviceData.mobileBranches.length
+    ) {
+      await go({ name: 'living-screen', params: { screenId: '4-10' } })
+      return
+    }
+
     screen.value = nextScreen
     loading.value = false
     await loadContext(service.value, screenId.value)
