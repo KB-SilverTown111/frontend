@@ -99,6 +99,11 @@ export const routes = [
   },
   createMyPageVoiceRoute(),
   {
+    path: '/mypage/transfer-pin',
+    name: 'transfer-pin',
+    component: () => import('@/views/TransferPinView.vue'),
+  },
+  {
     path: '/voice',
     name: 'voice-home',
     redirect: { name: 'my-page' },
