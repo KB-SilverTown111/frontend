@@ -447,6 +447,17 @@ test('production supporting text stays readable beside the large action labels',
   )
 })
 
+test('reminder form inputs stay within the mobile content width', () => {
+  const reminderInputBlock = screenContentStyleSource.match(
+    /\.reminder-form \.service-route-input-field input\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(reminderInputBlock, 'reminder form inputs should have a scoped sizing rule')
+  assert.match(reminderInputBlock, /width:\s*100%;/)
+  assert.match(reminderInputBlock, /min-width:\s*0;/)
+  assert.match(reminderInputBlock, /box-sizing:\s*border-box;/)
+})
+
 test('mobile branch screen loads nearby data, renders card fields, and guards direct detail entry', () => {
   assert.match(routeViewSource, /getCurrentLocation/)
   assert.match(routeViewSource, /loadMobileBranches/)
