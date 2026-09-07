@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
+import { goBackOrReplace } from '@/router/navigation.js'
 import { FONT_SCALE, applyFontScale, readFontScale, saveFontScale } from '@/services/fontScale.js'
 
 const route = useRoute()
@@ -20,7 +21,7 @@ function setFontScale(value) {
 }
 
 function goBack() {
-  return router.push(backRoute.value)
+  return goBackOrReplace(router, backRoute.value)
 }
 </script>
 
@@ -84,10 +85,23 @@ function goBack() {
         aria-label="주요 메뉴"
         class="app-bottom-nav four-items my-page-bottom-nav"
       >
-        <RouterLink :to="{ name: 'transfer-home' }">홈</RouterLink>
-        <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
-        <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
         <RouterLink
+          replace
+          :to="{ name: 'transfer-home' }"
+          >홈</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'bills-home' }"
+          >고지서</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'living-home' }"
+          >생활금융</RouterLink
+        >
+        <RouterLink
+          replace
           aria-current="page"
           :to="{ name: 'my-page' }"
         >

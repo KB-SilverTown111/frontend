@@ -22,7 +22,7 @@ test('authenticated users have a production transfer home route', () => {
 })
 
 test('login success navigates to the transfer home screen', () => {
-  assert.match(onboardingSource, /router\.push\(\{ name: 'transfer-home' \}\)/)
+  assert.match(onboardingSource, /return requestAppIntent\('home'\)/)
 })
 
 test('transfer home keeps the first reference screen content', () => {

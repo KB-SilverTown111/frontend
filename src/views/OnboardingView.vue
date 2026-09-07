@@ -32,6 +32,7 @@ import {
 } from '@/features/onboarding/screens.js'
 import { getAdjacentStep, getOnboardingDisplayProgress } from '@/features/onboarding/steps.js'
 import { FONT_SCALE, applyFontScale, readFontScale } from '@/services/fontScale.js'
+import { goBackOrReplace } from '@/router/navigation.js'
 import { useOnboardingStore } from '@/stores/onboarding.js'
 
 const route = useRoute()
@@ -49,6 +50,13 @@ const residentKeypadOpen = ref(false)
 const permissionsRequesting = ref(false)
 const fontScale = ref(readFontScale())
 applyFontScale(fontScale.value)
+
+const APP_INTENT_ROUTES = Object.freeze({
+  home: { name: 'transfer-home' },
+  bills: { name: 'bills-home' },
+  living: { name: 'living-home' },
+  mypage: { name: 'my-page' },
+})
 
 const screenId = computed(() => String(route.params.stepId || 'start'))
 const screenCopy = computed(() => {
@@ -135,11 +143,13 @@ function requestAppIntent(intent) {
     mypage: '마이페이지 화면을 여는 앱 이벤트를 보냈습니다.',
     'open-settings': 'Capacitor 앱에서 기기 설정을 여는 이벤트를 보냈습니다.',
   }[intent]
+
+  const target = APP_INTENT_ROUTES[intent]
+  return target ? router.replace(target) : undefined
 }
 
 function openMyPage() {
-  requestAppIntent('mypage')
-  return router.push({ name: 'my-page' })
+  return requestAppIntent('mypage')
 }
 
 function decideConsent(agreed) {
@@ -212,8 +222,7 @@ async function submitOnboarding() {
     const result = await store.submit()
     if (!result.ok) return
     store.finishUiFlow()
-    requestAppIntent('home')
-    return router.push({ name: 'transfer-home' })
+    return requestAppIntent('home')
   } finally {
     permissionsRequesting.value = false
   }
@@ -253,9 +262,14 @@ async function openPostcode() {
 
 function goBack() {
   store.submitError = null
-  if (screenId.value === 'start') return go('login')
+  if (screenId.value === 'start') {
+    return goBackOrReplace(router, { name: 'onboarding', params: { stepId: 'login' } })
+  }
 
   const recovery = {
+    'consent-optional': 'consent-overview',
+    'mydata-consent': 'consent-overview',
+    'ai-voice-consent': 'mydata-consent',
     'bank-select': 'bank-account',
     'address-not-found': 'address',
     'account-error': 'bank-account',
@@ -264,8 +278,10 @@ function goBack() {
     'notification-denied': 'permissions',
   }
   const target = recovery[screenId.value] || getAdjacentStep(screenId.value, -1)
-  if (target) go(target)
-  else router.back()
+  return goBackOrReplace(router, {
+    name: 'onboarding',
+    params: { stepId: target || 'login' },
+  })
 }
 
 async function handlePrimary() {
@@ -296,14 +312,12 @@ async function handlePrimary() {
   }
   if (id === 'permissions') return submitOnboarding()
   if (id === 'complete') {
-    requestAppIntent('home')
-    return router.push({ name: 'transfer-home' })
+    return requestAppIntent('home')
   }
   if (id === 'login') {
     const result = await store.login()
     if (result.ok) {
-      requestAppIntent('home')
-      return router.push({ name: 'transfer-home' })
+      return requestAppIntent('home')
     }
     return
   }

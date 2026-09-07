@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
+import { goBackOrReplace } from '@/router/navigation.js'
 
 const router = useRouter()
 const helpStatus = ref('')
@@ -13,6 +14,10 @@ function requestHelp(mode) {
     mode === 'voice'
       ? '음성 도움 기능을 시작할 준비가 됐어요.'
       : '글자 질문 화면을 여는 이벤트를 보냈어요.'
+}
+
+function closeHelp() {
+  return goBackOrReplace(router, { name: 'onboarding', params: { stepId: 'login' } })
 }
 </script>
 
@@ -25,7 +30,7 @@ function requestHelp(mode) {
           class="app-header-button"
           size="icon"
           variant="secondary"
-          @click="router.back()"
+          @click="closeHelp"
         >
           ×
         </Button>
