@@ -13,7 +13,7 @@
     "lint:fix": "eslint . --fix",
     "prepare": "husky",
     "preview": "vite preview",
-    "test:onboarding": "node --test scripts/onboarding-*.test.mjs",
+    "test:onboarding": "node scripts/run-tests.mjs onboarding-",
     "test:screen-data": "node --test scripts/screen-data.test.mjs",
     "test:app-loading": "node --test scripts/app-loading.test.mjs",
     "test:auto-login": "node --test scripts/auto-login.test.mjs",
