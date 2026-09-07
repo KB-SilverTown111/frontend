@@ -19,7 +19,7 @@ export default [
     description: '카메라와 앨범 중 하나를 선택합니다.',
     contentHtml:
       '<section class="hero "><div class="hero-icon">✓</div><div><strong>고지서를 화면 안에 맞춰 주세요</strong><p>빛 반사를 피하면 더 정확해요.</p></div></section><div class="choices"><div class="choice active"><span>카메라 촬영</span><i>✓</i></div><div class="choice "><span>앨범에서 선택</span><i></i></div></div><div class="note"><b>안내</b><span>명세에 없는 플래시 토글은 제외했습니다.</span></div>',
-    primaryLabel: '촬영',
+    primaryLabel: '',
     secondaryLabel: '',
     variant: 'default',
     showHelp: true,
@@ -31,7 +31,7 @@ export default [
     title: '고지서를 비춰 주세요',
     description: '네 모서리가 모두 보이게 맞춰 주세요.',
     contentHtml:
-      '<div class="viewfinder"><div class="vf-doc"></div><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div><div class="vf-hint">테두리가 초록색이 되면 찍어 주세요</div></div><div class="note"><b>안내</b><span>빛 반사를 피하면 더 정확해요.</span></div>',
+      '<div class="viewfinder"><div class="vf-doc"></div><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div></div><div class="note"><b>안내</b><span>빛 반사를 피하면 더 정확해요.</span></div>',
     primaryLabel: '촬영',
     variant: 'default',
     showHelp: true,

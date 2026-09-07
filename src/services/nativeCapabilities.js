@@ -52,6 +52,24 @@ export async function takeBillPhoto(source = 'camera', dependencies = {}) {
   })
 }
 
+export function captureVideoFrame(video, canvas = document.createElement('canvas')) {
+  const width = Number(video?.videoWidth)
+  const height = Number(video?.videoHeight)
+
+  if (!width || !height) return null
+
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('카메라 화면을 캡처할 수 없어요.')
+
+  canvas.width = width
+  canvas.height = height
+  context.drawImage(video, 0, 0, width, height)
+
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', 0.9)
+  })
+}
+
 export async function photoToBlob(photo) {
   const paths = [photo?.webPath, photo?.path, photo?.uri].filter(Boolean)
   for (const path of paths) {

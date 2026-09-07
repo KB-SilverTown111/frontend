@@ -16,6 +16,8 @@ const routeViewSource = readSource('../src/views/ServiceRouteView.vue')
 const shellSource = readSource('../src/components/onboarding/OnboardingShell.vue')
 const onboardingSource = readSource('../src/views/OnboardingView.vue')
 const styleSource = readSource('../src/styles/onboarding.css')
+const globalStyleSource = readSource('../src/styles/globals.css')
+const transferStyleSource = readSource('../src/styles/transfer.css')
 
 test('my page has a production route and view', () => {
   const myPageRoute = routes.find(({ name }) => name === 'my-page')
@@ -40,6 +42,15 @@ test('my page exposes cards and moves font size controls to a detail screen', ()
   assert.match(fontSizeSource, /기본 크기/)
   assert.match(fontSizeSource, /큰 글씨/)
   assert.match(fontSizeSource, /my-page/)
+})
+
+test('font size detail screen returns to the correct entry flow', () => {
+  assert.match(fontSizeSource, /useRoute/)
+  assert.match(fontSizeSource, /route\.name === 'font-size'/)
+  assert.match(fontSizeSource, /로그인으로 돌아가기/)
+  assert.match(fontSizeSource, /마이페이지로 돌아가기/)
+  assert.match(fontSizeSource, /v-if="!isLoginFontSize"/)
+  assert.match(fontSizeSource, /stepId: 'login'/)
 })
 
 test('production choices do not show onboarding selection indicators', () => {
@@ -95,4 +106,21 @@ test('four-item bottom navigation keeps equal columns', () => {
     styleSource,
     /\.app-bottom-nav\.four-items\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,\s*1fr\);/,
   )
+})
+
+test('every bottom navigation uses the selected font scale', () => {
+  assert.match(globalStyleSource, /--font-size-nav:\s*16px;/)
+  assert.match(
+    globalStyleSource,
+    /:root\[data-font-scale='large'\]\s*\{[\s\S]*?--font-size-nav:\s*18px;/,
+  )
+  assert.match(
+    styleSource,
+    /\.app-bottom-nav button\s*\{[\s\S]*?font-size:\s*var\(--font-size-nav\);/,
+  )
+  assert.match(
+    transferStyleSource,
+    /\.transfer-bottom-nav a,[\s\S]*?\.my-page-bottom-nav a\s*\{[\s\S]*?font-size:\s*var\(--font-size-nav\);/,
+  )
+  assert.match(transferStyleSource, /\.my-page-bottom-nav a\s*\{[\s\S]*?font-family:\s*inherit;/)
 })

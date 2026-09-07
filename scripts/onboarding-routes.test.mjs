@@ -32,6 +32,13 @@ test('the Figma help screen has a production route outside the prototype', () =>
   assert.equal(help.path, '/onboarding/help')
 })
 
+test('font size settings are available from the unauthenticated login flow', () => {
+  const fontSize = routes.find(({ name }) => name === 'font-size')
+
+  assert.equal(fontSize?.path, '/font-size')
+  assert.equal(typeof fontSize?.component, 'function')
+})
+
 test('design-system route remains available', () => {
   assert.equal(
     routes.some(({ name }) => name === 'design-system'),

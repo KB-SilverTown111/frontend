@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { withAppLoading } from '@/services/appLoading.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 
 const router = useRouter()
@@ -17,7 +18,7 @@ const balanceLabel = computed(() => {
 })
 
 onMounted(() => {
-  serviceData.loadAccounts({ active: true }).catch(() => {})
+  withAppLoading(() => serviceData.loadAccounts({ active: true }).catch(() => {}))
 })
 
 function startVoiceTransfer() {
@@ -101,16 +102,15 @@ function startVoiceTransfer() {
             </RouterLink>
           </div>
         </div>
+        <footer class="app-actions transfer-actions">
+          <Button
+            class="w-full"
+            @click="startVoiceTransfer"
+          >
+            음성으로 송금
+          </Button>
+        </footer>
       </main>
-
-      <footer class="app-actions transfer-actions">
-        <Button
-          class="w-full"
-          @click="startVoiceTransfer"
-        >
-          음성으로 송금
-        </Button>
-      </footer>
 
       <nav
         aria-label="주요 메뉴"

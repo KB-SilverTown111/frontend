@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { withAppLoading } from '@/services/appLoading.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
 
 const route = useRoute()
@@ -95,11 +96,17 @@ function formatCurrency(value) {
 }
 
 onMounted(() => {
-  if (service.value === 'bills') {
-    serviceData.loadBills().catch(() => {})
-    serviceData.loadMonthlySummary().catch(() => {})
-  }
-  if (service.value === 'living') serviceData.loadReminders({ status: 'SCHEDULED' }).catch(() => {})
+  withAppLoading(async () => {
+    if (service.value === 'bills') {
+      await Promise.all([
+        serviceData.loadBills().catch(() => {}),
+        serviceData.loadMonthlySummary().catch(() => {}),
+      ])
+    }
+    if (service.value === 'living') {
+      await serviceData.loadReminders({ status: 'SCHEDULED' }).catch(() => {})
+    }
+  })
 })
 
 function startVoiceAssist() {
@@ -179,19 +186,18 @@ function startVoiceAssist() {
             서버 정보를 불러오지 못했어요. 화면의 기본 안내는 계속 이용할 수 있어요.
           </p>
         </div>
-      </main>
-
-      <footer
-        v-if="screen.primaryLabel"
-        class="app-actions service-home-actions"
-      >
-        <RouterLink
-          class="service-home-primary"
-          :to="screen.primaryTo"
+        <footer
+          v-if="screen.primaryLabel"
+          class="app-actions service-home-actions"
         >
-          {{ screen.primaryLabel }}
-        </RouterLink>
-      </footer>
+          <RouterLink
+            class="service-home-primary"
+            :to="screen.primaryTo"
+          >
+            {{ screen.primaryLabel }}
+          </RouterLink>
+        </footer>
+      </main>
 
       <nav
         aria-label="주요 메뉴"

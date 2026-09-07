@@ -116,7 +116,7 @@ test('production route screen does not use prototype-only components', () => {
 test('production route actions use the shared footer layout', () => {
   assert.match(
     routeViewSource,
-    /<footer(?=[^>]*\bclass="app-actions service-route-actions")(?=[^>]*\bv-if="screen && !hideScreenActions)[^>]*>/,
+    /<footer(?=[^>]*\bclass="app-actions service-route-actions")(?=[^>]*\bv-if="[^"]*screen\s*&&\s*!hideScreenActions)[^>]*>/,
   )
 })
 
@@ -126,6 +126,42 @@ test('production bill route captures an image and binds it to a BILL_PAYMENT ses
   assert.match(routeViewSource, /startSession\('BILL_PAYMENT'\)/)
   assert.match(routeViewSource, /billStore\.upload\(\{\s*image,\s*voiceSessionId,\s*\}\)/)
   assert.match(routeViewSource, /await billStore\.upload\([\s\S]*?screenId: '3-04'/)
+})
+
+test('bill source selection uses action buttons and removes the duplicate footer capture action', async () => {
+  const screen = await loadProductionScreen('bills', '3-02')
+
+  assert.equal(screen?.primaryLabel, '')
+  assert.match(routeViewSource, /const isBillSourceSelection = computed/)
+  assert.match(routeViewSource, /v-if="screen\s*&&\s*isBillSourceSelection/)
+  assert.match(
+    routeViewSource,
+    /<button[\s\S]*?class="choice"[\s\S]*?@click="go\(primaryRoute\)"[\s\S]*?>\s*카메라 촬영\s*<\/button>/,
+  )
+  assert.match(
+    routeViewSource,
+    /<button[\s\S]*?class="choice"[\s\S]*?@click="uploadBill\('gallery'\)"[\s\S]*?>\s*앨범에서 선택\s*<\/button>/,
+  )
+  assert.match(routeViewSource, /!hideScreenActions\s*&&\s*!isBillSourceSelection/)
+})
+
+test('bill camera screen renders a live preview and captures the current frame for OCR', () => {
+  assert.match(routeViewSource, /getUserMedia/)
+  assert.match(routeViewSource, /ref="billCameraVideo"/)
+  assert.match(routeViewSource, /playsinline/)
+  assert.match(routeViewSource, /captureVideoFrame\(billCameraVideo/)
+  assert.match(routeViewSource, /return captureBillFrame\(\)/)
+  assert.match(routeViewSource, /!isBillCameraScreen/)
+})
+
+test('bill camera screen swaps the video for a placeholder and captured preview by state', () => {
+  assert.match(routeViewSource, /v-show="billCameraReady && !billCameraPreviewUrl"/)
+  assert.match(routeViewSource, /v-if="billCameraPreviewUrl"/)
+  assert.match(routeViewSource, /class="bill-camera-placeholder"/)
+  assert.match(routeViewSource, /class="bill-camera-preview"/)
+  assert.match(routeViewSource, /촬영한 고지서 미리보기/)
+  assert.match(routeViewSource, /사진을 확인하고 있어요\./)
+  assert.match(routeViewSource, /revokeObjectURL\(/)
 })
 
 test('production transfer route requires candidate selection and prepares only supported transfer data', () => {
