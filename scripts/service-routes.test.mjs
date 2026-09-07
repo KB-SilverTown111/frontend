@@ -27,6 +27,10 @@ const routeViewSource = readFileSync(
   new URL('../src/views/ServiceRouteView.vue', import.meta.url),
   'utf8',
 )
+const transferFlowPanelSource = readFileSync(
+  new URL('../src/components/patterns/TransferFlowPanel.vue', import.meta.url),
+  'utf8',
+)
 const mobileBranchPresentationSource = readFileSync(
   new URL('../src/services/mobileBranchPresentation.js', import.meta.url),
   'utf8',
@@ -239,6 +243,16 @@ test('transfer risk clearance skips rescoring after a safe risk check', () => {
   assert.match(routeViewSource, /confirmationCompleted/)
   assert.match(routeViewSource, /authenticationCompleted/)
   assert.match(routeViewSource, /추가 확인이 필요해 송금을 진행할 수 없어요\./)
+})
+
+test('transfer failure screen renders runtime failure details instead of an empty result state', () => {
+  assert.match(
+    transferFlowPanelSource,
+    /const showFailure = computed\(\(\) => props\.screenId === '2-23'\)/,
+  )
+  assert.match(transferFlowPanelSource, /transferStore\.error\?\.message/)
+  assert.match(transferFlowPanelSource, /transferStore\.amount/)
+  assert.match(transferFlowPanelSource, /송금을 처리하지 못했어요/)
 })
 
 test('bill home reads the backend monthly totalCount field before legacy fallbacks', () => {
