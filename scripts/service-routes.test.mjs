@@ -39,6 +39,10 @@ const serviceStyleSource = readFileSync(
   new URL('../src/styles/transfer.css', import.meta.url),
   'utf8',
 )
+const screenContentStyleSource = readFileSync(
+  new URL('../src/styles/screen-content.css', import.meta.url),
+  'utf8',
+)
 
 const expectedScreenCounts = {
   transfer: 30,
@@ -176,6 +180,25 @@ test('production route actions use the shared footer layout', () => {
     routeViewSource,
     /<footer(?=[^>]*\bclass="app-actions service-route-actions")(?=[^>]*\bv-if="[^"]*screen\s*&&\s*!hideScreenActions)[^>]*>/,
   )
+})
+
+test('production route actions, including reminder screens, follow natural screen content height', () => {
+  const screenContentBlock = screenContentStyleSource.match(
+    /\.screen-content\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(screenContentBlock, 'screen content should have a dedicated layout rule')
+  assert.doesNotMatch(screenContentBlock, /min-height:\s*100%;/)
+
+  const contentBlock = screenContentStyleSource.match(
+    /\.screen-content \.content\s*\{([\s\S]*?)\}/,
+  )?.[1]
+
+  assert.ok(contentBlock, 'screen content wrapper should have a dedicated layout rule')
+  assert.doesNotMatch(contentBlock, /flex:\s*1;/)
+  assert.match(routeViewSource, /screen-content reminder-list-content/)
+  assert.match(routeViewSource, /screen-content reminder-state-content/)
+  assert.match(routeViewSource, /screen-content reminder-form-content/)
 })
 
 test('production bill route captures an image and binds it to a BILL_PAYMENT session for OCR', () => {

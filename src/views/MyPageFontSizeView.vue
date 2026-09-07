@@ -69,7 +69,7 @@ function goBack() {
             </button>
             <button
               :aria-pressed="fontScale === FONT_SCALE.large"
-              class="font-size-option"
+              class="font-size-option font-size-option-large"
               :class="{ selected: fontScale === FONT_SCALE.large }"
               type="button"
               @click="setFontScale(FONT_SCALE.large)"
