@@ -113,6 +113,13 @@ test('production route screen does not use prototype-only components', () => {
   assert.match(routeViewSource, /getProductionActionRoutes/)
 })
 
+test('production route actions use the shared footer layout', () => {
+  assert.match(
+    routeViewSource,
+    /<footer(?=[^>]*\bclass="app-actions service-route-actions")(?=[^>]*\bv-if="screen && !hideScreenActions)[^>]*>/,
+  )
+})
+
 test('production bill route captures an image and binds it to a BILL_PAYMENT session for OCR', () => {
   assert.match(routeViewSource, /takeBillPhoto\(source\)/)
   assert.match(routeViewSource, /photoToBlob\(photo\)/)

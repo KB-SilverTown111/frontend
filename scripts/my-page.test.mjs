@@ -65,6 +65,18 @@ test('font size setting remains backed by the shared service', () => {
   assert.match(myPageSource, /readFontScale/)
 })
 
+test('my page exposes a logout action', () => {
+  assert.match(myPageSource, /<button[\s\S]*my-page-logout/)
+  assert.match(myPageSource, /@click="handleLogout"/)
+  assert.match(myPageSource, /로그아웃/)
+  assert.match(myPageSource, /:aria-label="isLoggingOut \? '로그아웃 중' : '로그아웃'"/)
+  assert.match(myPageSource, /:aria-busy="isLoggingOut"/)
+  assert.match(
+    myPageSource,
+    /await onboardingStore\.logout\(\)[\s\S]*await router\.replace\([\s\S]*finally\s*\{\s*isLoggingOut\.value = false/s,
+  )
+})
+
 test('production navigation exposes my page as the rightmost fourth item', () => {
   for (const source of [transferHomeSource, serviceHomeSource, routeViewSource]) {
     assert.match(source, /class="app-bottom-nav four-items/)
