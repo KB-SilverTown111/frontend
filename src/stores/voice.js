@@ -11,6 +11,9 @@ import {
   captureSpeech,
 } from '../services/voiceStt.js'
 
+/** Azure 토큰이 이 시간 안에 만료되면 재생 전에 새로 받는다. */
+const SPEECH_TOKEN_REFRESH_MARGIN_MS = 60_000
+
 const DEFAULT_VOICE_SETTINGS = {
   ttsVoice: 'ko-KR-JiMinNeural',
   speechRateMultiplier: 1.05,
@@ -34,6 +37,7 @@ export const useVoiceStore = defineStore('voice', () => {
   const usesBackendStream = computed(() => sttMode.value === STT_MODE.BACKEND_STREAM)
   const currentStep = computed(() => lastTurn.value?.state || session.value?.currentStep || '')
   const ttsText = computed(() => lastTurn.value?.ttsText || session.value?.firstPrompt || '')
+  const ttsSsml = computed(() => lastTurn.value?.ttsSsml || '')
   const displayCard = computed(() => lastTurn.value?.displayCard ?? null)
   const requiredSlot = computed(() => lastTurn.value?.requiredSlot ?? null)
   const draftSummary = computed(() => lastTurn.value?.draftSummary ?? null)
@@ -87,16 +91,41 @@ export const useVoiceStore = defineStore('voice', () => {
     speaking.value = false
   }
 
-  async function speakText(text) {
+  function isCredentialUsable(credential) {
+    if (!credential?.token || !credential?.region) return false
+
+    const expiresAt = Date.parse(credential.expiresAt ?? '')
+    if (!Number.isFinite(expiresAt)) return true
+    return expiresAt - Date.now() > SPEECH_TOKEN_REFRESH_MARGIN_MS
+  }
+
+  /**
+   * Azure 토큰은 최대 9분이라 재생 전에 만료가 임박했으면 새로 받는다.
+   * 실패해도 브라우저 음성으로 읽을 수 있으므로 오류로 처리하지 않는다.
+   */
+  async function ensureSpeechCredential() {
+    if (isCredentialUsable(speechToken.value)) return speechToken.value
+
+    try {
+      speechToken.value = await voiceApi.issueSpeechToken()
+    } catch {
+      speechToken.value = null
+    }
+    return speechToken.value
+  }
+
+  async function speakText(text, ssml) {
     const content = String(text ?? '').trim()
     if (!content) return { spoken: false, reason: 'EMPTY_TEXT' }
-    if (!isSpeechSupported()) return { spoken: false, reason: 'UNSUPPORTED' }
+
+    const credential = await ensureSpeechCredential()
+    if (!credential && !isSpeechSupported()) return { spoken: false, reason: 'UNSUPPORTED' }
 
     speakGeneration += 1
     const generation = speakGeneration
     speaking.value = true
     try {
-      return await speak(content, settings)
+      return await speak(content, { ...settings, ttsSsml: ssml, speechCredential: credential })
     } finally {
       // 더 최신 발화가 시작됐다면 상태는 그쪽이 관리한다.
       if (generation === speakGeneration) speaking.value = false
@@ -104,7 +133,7 @@ export const useVoiceStore = defineStore('voice', () => {
   }
 
   function speakLatest() {
-    return speakText(ttsText.value)
+    return speakText(ttsText.value, ttsSsml.value)
   }
 
   function applyTurn(turn) {
@@ -204,7 +233,7 @@ export const useVoiceStore = defineStore('voice', () => {
       }).catch(() => null)
 
       const payload = response?.replayPayload
-      if (payload?.ttsText) return speakText(payload.ttsText)
+      if (payload?.ttsText) return speakText(payload.ttsText, payload.ttsSsml)
     }
 
     return speakLatest()
@@ -279,6 +308,7 @@ export const useVoiceStore = defineStore('voice', () => {
     usesBackendStream,
     currentStep,
     ttsText,
+    ttsSsml,
     displayCard,
     requiredSlot,
     draftSummary,
