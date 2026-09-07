@@ -48,6 +48,14 @@ test('my page exposes cards and moves font size controls to a detail screen', ()
   assert.match(fontSizeSource, /my-page/)
 })
 
+test('large font option previews the large body text size', () => {
+  assert.match(fontSizeSource, /class="font-size-option font-size-option-large"/)
+  assert.match(
+    styleSource,
+    /\.font-size-option-large\s*\{[\s\S]*?font-size:\s*max\(var\(--font-size-body\),\s*21px\);/,
+  )
+})
+
 test('my page exposes the voice change card as the only settings entry point', () => {
   assert.match(myPageSource, /목소리 변경/)
   assert.match(myPageSource, /name: 'my-page-voice'/)

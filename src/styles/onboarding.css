@@ -232,6 +232,10 @@
   text-align: left;
 }
 
+.font-size-option-large {
+  font-size: max(var(--font-size-body), 21px);
+}
+
 .font-size-option.selected {
   border-color: var(--primary);
   background: var(--muted);

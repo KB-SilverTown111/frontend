@@ -61,3 +61,9 @@ test('mock login uses the documented credential request and auth response shape'
 
   assert.deepEqual(Object.keys(auth), ['accessToken', 'refreshToken', 'expiresAt', 'userId'])
 })
+
+test('mock refresh uses the documented auth response shape', async () => {
+  const auth = await mockAuthApi.refresh({ refreshToken: 'refresh-token' })
+
+  assert.deepEqual(Object.keys(auth), ['accessToken', 'refreshToken', 'expiresAt', 'userId'])
+})

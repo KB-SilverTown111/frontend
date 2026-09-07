@@ -1,5 +1,4 @@
 .screen-content {
-  min-height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -21,7 +20,6 @@
 }
 
 .screen-content .content {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;

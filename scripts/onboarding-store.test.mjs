@@ -6,7 +6,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { Capacitor } from '@capacitor/core'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 
-import { clearAuthSession, loadAuthSession } from '../src/api/authStorage.js'
+import { clearAuthSession, loadAuthSession, saveAuthSession } from '../src/api/authStorage.js'
 import { onboardingApi } from '../src/api/onboarding.js'
 import { useBillStore } from '../src/stores/bill.js'
 import { useOnboardingStore } from '../src/stores/onboarding.js'
@@ -249,6 +249,83 @@ test('store restores and clears the authenticated session across app instances',
   const clearedStore = useOnboardingStore()
   await clearedStore.restoreAuthSession()
   assert.equal(clearedStore.authResult, null)
+})
+
+test('store refreshes an expired access token before restoring the session', async () => {
+  await clearAuthSession()
+  await saveAuthSession({
+    accessToken: 'expired-access-token',
+    refreshToken: 'refresh-token',
+    expiresAt: '2000-01-01T00:00:00Z',
+    userId: 'user-001',
+  })
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  try {
+    const restoredSession = await store.restoreAuthSession()
+
+    assert.equal(restoredSession.accessToken, 'mock-access-token')
+    assert.equal(restoredSession.refreshToken, 'mock-refresh-token')
+    assert.deepEqual(await loadAuthSession(), restoredSession)
+  } finally {
+    await clearAuthSession()
+  }
+})
+
+test('store keeps an expired session after a transient refresh failure', async () => {
+  await clearAuthSession()
+  const session = {
+    accessToken: 'expired-access-token',
+    refreshToken: 'refresh-token',
+    expiresAt: '2000-01-01T00:00:00Z',
+    userId: 'user-001',
+  }
+  await saveAuthSession(session)
+
+  const originalRefresh = onboardingApi.refresh
+  onboardingApi.refresh = async () => {
+    const error = new Error('temporary outage')
+    error.response = { status: 503 }
+    throw error
+  }
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  try {
+    assert.equal(await store.restoreAuthSession(), null)
+    assert.deepEqual(await loadAuthSession(), session)
+  } finally {
+    onboardingApi.refresh = originalRefresh
+    await clearAuthSession()
+  }
+})
+
+test('store clears an expired session after an unauthorized refresh failure', async () => {
+  await clearAuthSession()
+  await saveAuthSession({
+    accessToken: 'expired-access-token',
+    refreshToken: 'refresh-token',
+    expiresAt: '2000-01-01T00:00:00Z',
+    userId: 'user-001',
+  })
+
+  const originalRefresh = onboardingApi.refresh
+  onboardingApi.refresh = async () => {
+    const error = new Error('refresh token rejected')
+    error.response = { status: 401 }
+    throw error
+  }
+
+  setActivePinia(createPinia())
+  const store = useOnboardingStore()
+  try {
+    assert.equal(await store.restoreAuthSession(), null)
+    assert.equal(await loadAuthSession(), null)
+  } finally {
+    onboardingApi.refresh = originalRefresh
+    await clearAuthSession()
+  }
 })
 
 test('UI-only completion clears transient personal and financial data', () => {
