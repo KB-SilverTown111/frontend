@@ -6,6 +6,7 @@ import { billsApi } from '../api/bills.js'
 import { mobileBranchesApi } from '../api/mobileBranches.js'
 import { remindersApi } from '../api/reminders.js'
 import { normalizeApiError } from '../api/errors.js'
+import { createIdempotencyKey } from '../api/request.js'
 
 export const useServiceDataStore = defineStore('service-data', () => {
   const accounts = ref([])
@@ -28,13 +29,14 @@ export const useServiceDataStore = defineStore('service-data', () => {
     mobileBranches: null,
   })
   let resetVersion = 0
+  const reminderMutationKeys = new Map()
 
   function responseItems(value) {
     if (Array.isArray(value)) return value
     return Array.isArray(value?.items) ? value.items : []
   }
 
-  async function runResource(key, request, assign) {
+  async function runResource(key, request, assign, normalizeError = normalizeApiError) {
     const requestVersion = resetVersion
     loading[key] = true
     errors[key] = null
@@ -43,7 +45,7 @@ export const useServiceDataStore = defineStore('service-data', () => {
       if (requestVersion === resetVersion) assign(value)
       return value
     } catch (error) {
-      const normalizedError = normalizeApiError(error)
+      const normalizedError = normalizeError(error)
       if (requestVersion === resetVersion) errors[key] = normalizedError
       throw normalizedError
     } finally {
@@ -52,6 +54,63 @@ export const useServiceDataStore = defineStore('service-data', () => {
   }
 
   const loadResource = runResource
+
+  function reminderRequestFingerprint(request) {
+    try {
+      return JSON.stringify(request ?? {})
+    } catch {
+      return String(request)
+    }
+  }
+
+  function reminderMutationKey(operation, identifier, request, options = {}) {
+    const cacheKey = `${operation}:${identifier || 'new'}`
+    const fingerprint = reminderRequestFingerprint(request)
+    const requestedKey = options?.idempotencyKey
+    if (requestedKey) {
+      reminderMutationKeys.set(cacheKey, { fingerprint, key: requestedKey })
+      return requestedKey
+    }
+
+    const previous = reminderMutationKeys.get(cacheKey)
+    if (previous?.fingerprint === fingerprint) return previous.key
+
+    const key = createIdempotencyKey()
+    reminderMutationKeys.set(cacheKey, { fingerprint, key })
+    return key
+  }
+
+  function clearReminderMutationKey(operation, identifier, request) {
+    const cacheKey = `${operation}:${identifier || 'new'}`
+    const previous = reminderMutationKeys.get(cacheKey)
+    if (previous?.fingerprint === reminderRequestFingerprint(request)) {
+      reminderMutationKeys.delete(cacheKey)
+    }
+  }
+
+  function normalizeReminderError(error, operation) {
+    const normalized = normalizeApiError(error)
+    const messages = {
+      list: '알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
+      create: '알림을 저장하지 못했어요. 다시 시도해 주세요.',
+      update: '알림을 변경하지 못했어요. 다시 시도해 주세요.',
+      cancel: '알림을 취소하지 못했어요. 다시 시도해 주세요.',
+    }
+    const message =
+      normalized.status === 404 && operation !== 'list'
+        ? '알림을 찾지 못했어요. 목록을 다시 확인해 주세요.'
+        : messages[operation] || '알림 요청을 처리하지 못했어요. 다시 시도해 주세요.'
+    return { ...normalized, message }
+  }
+
+  function invalidReminderId(operation) {
+    const error = normalizeReminderError(
+      { response: { data: { code: 'REMINDER_ID_REQUIRED', message: '알림을 선택해 주세요.' } } },
+      operation,
+    )
+    errors.reminders = error
+    return error
+  }
 
   function loadAccounts(params) {
     return loadResource(
@@ -90,6 +149,7 @@ export const useServiceDataStore = defineStore('service-data', () => {
       (value) => {
         reminders.value = responseItems(value)
       },
+      (error) => normalizeReminderError(error, 'list'),
     )
   }
 
@@ -117,13 +177,88 @@ export const useServiceDataStore = defineStore('service-data', () => {
     return Number.isFinite(distance) && distance >= 0 ? distance : Number.POSITIVE_INFINITY
   }
 
-  async function createReminder(request, options) {
+  async function createReminder(request, options = {}) {
+    const normalizedOptions = options ?? {}
+    const idempotencyKey = reminderMutationKey('create', null, request, normalizedOptions)
     return runResource(
       'reminders',
-      () => remindersApi.create(request, options),
+      () =>
+        remindersApi.create(request, {
+          ...normalizedOptions,
+          idempotencyKey,
+        }),
       (value) => {
         reminders.value = [value, ...reminders.value]
+        clearReminderMutationKey('create', null, request)
       },
+      (error) => normalizeReminderError(error, 'create'),
+    )
+  }
+
+  async function updateReminder(reminderId, request, options = {}) {
+    const normalizedReminderId = String(reminderId ?? '').trim()
+    if (!normalizedReminderId) throw invalidReminderId('update')
+
+    const normalizedOptions = options ?? {}
+    const idempotencyKey = reminderMutationKey(
+      'update',
+      normalizedReminderId,
+      request,
+      normalizedOptions,
+    )
+    return runResource(
+      'reminders',
+      () =>
+        remindersApi.update(normalizedReminderId, request, {
+          ...normalizedOptions,
+          idempotencyKey,
+        }),
+      (value) => {
+        const serverReminder =
+          value?.reminder && typeof value.reminder === 'object' ? value.reminder : value
+        const updatedReminder =
+          serverReminder && typeof serverReminder === 'object' ? serverReminder : request
+        reminders.value = reminders.value.map((reminder) => {
+          const currentId = String(reminder?.reminderId ?? reminder?.id ?? '')
+          if (currentId !== normalizedReminderId) return reminder
+          return {
+            ...reminder,
+            ...updatedReminder,
+            reminderId: updatedReminder?.reminderId ?? reminder.reminderId ?? normalizedReminderId,
+          }
+        })
+        clearReminderMutationKey('update', normalizedReminderId, request)
+      },
+      (error) => normalizeReminderError(error, 'update'),
+    )
+  }
+
+  async function cancelReminder(reminderId, options = {}) {
+    const normalizedReminderId = String(reminderId ?? '').trim()
+    if (!normalizedReminderId) throw invalidReminderId('cancel')
+
+    const normalizedOptions = options ?? {}
+    const request = {}
+    const idempotencyKey = reminderMutationKey(
+      'cancel',
+      normalizedReminderId,
+      request,
+      normalizedOptions,
+    )
+    return runResource(
+      'reminders',
+      () =>
+        remindersApi.cancel(normalizedReminderId, {
+          ...normalizedOptions,
+          idempotencyKey,
+        }),
+      () => {
+        reminders.value = reminders.value.filter(
+          (reminder) => String(reminder?.reminderId ?? reminder?.id ?? '') !== normalizedReminderId,
+        )
+        clearReminderMutationKey('cancel', normalizedReminderId, request)
+      },
+      (error) => normalizeReminderError(error, 'cancel'),
     )
   }
 
@@ -134,6 +269,7 @@ export const useServiceDataStore = defineStore('service-data', () => {
     monthlySummary.value = null
     reminders.value = []
     mobileBranches.value = []
+    reminderMutationKeys.clear()
     Object.assign(loading, {
       accounts: false,
       bills: false,
@@ -164,6 +300,8 @@ export const useServiceDataStore = defineStore('service-data', () => {
     loadReminders,
     loadMobileBranches,
     createReminder,
+    updateReminder,
+    cancelReminder,
     reset,
   }
 })

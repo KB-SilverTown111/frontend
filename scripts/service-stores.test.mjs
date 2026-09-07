@@ -43,6 +43,125 @@ test('service data store loads account, bill summary, and reminder collections',
   }
 })
 
+test('service data store creates, updates, and cancels reminders with retry-safe keys', async () => {
+  setup()
+  const originals = {
+    create: remindersApi.create,
+    update: remindersApi.update,
+    cancel: remindersApi.cancel,
+  }
+  const createKeys = []
+  const updateKeys = []
+  const cancelKeys = []
+  let createAttempts = 0
+  let updateAttempts = 0
+  let cancelAttempts = 0
+  const createdReminder = {
+    reminderId: 'r-1',
+    title: '병원 예약',
+    billId: null,
+    scheduledAt: '2026-09-10T09:00:00+09:00',
+    status: 'SCHEDULED',
+  }
+  const updatedReminder = {
+    ...createdReminder,
+    title: '병원 예약 변경',
+    scheduledAt: '2026-09-11T10:30:00+09:00',
+  }
+  remindersApi.create = async (_request, options) => {
+    createAttempts += 1
+    createKeys.push(options.idempotencyKey)
+    if (createAttempts === 1) throw new Error('temporary create failure')
+    return createdReminder
+  }
+  remindersApi.update = async (_reminderId, _request, options) => {
+    updateAttempts += 1
+    updateKeys.push(options.idempotencyKey)
+    if (updateAttempts === 1) throw new Error('temporary update failure')
+    return updatedReminder
+  }
+  remindersApi.cancel = async (_reminderId, options) => {
+    cancelAttempts += 1
+    cancelKeys.push(options.idempotencyKey)
+    if (cancelAttempts === 1) throw new Error('temporary cancel failure')
+  }
+
+  try {
+    const store = useServiceDataStore()
+    const request = { title: '병원 예약', scheduledAt: createdReminder.scheduledAt }
+
+    await assert.rejects(() => store.createReminder(request))
+    assert.deepEqual(store.reminders, [])
+    await store.createReminder(request)
+    assert.deepEqual(store.reminders, [createdReminder])
+    assert.equal(createKeys[0], createKeys[1])
+
+    await assert.rejects(() =>
+      store.updateReminder('r-1', {
+        title: updatedReminder.title,
+        scheduledAt: updatedReminder.scheduledAt,
+      }),
+    )
+    assert.deepEqual(store.reminders, [createdReminder])
+    await store.updateReminder('r-1', {
+      title: updatedReminder.title,
+      scheduledAt: updatedReminder.scheduledAt,
+    })
+    assert.deepEqual(store.reminders, [updatedReminder])
+    assert.equal(updateKeys[0], updateKeys[1])
+
+    await assert.rejects(() => store.cancelReminder('r-1'))
+    assert.deepEqual(store.reminders, [updatedReminder])
+    await store.cancelReminder('r-1')
+    assert.deepEqual(store.reminders, [])
+    assert.equal(cancelKeys.length, 2)
+    assert.ok(cancelKeys[0])
+    assert.equal(cancelKeys[0], cancelKeys[1])
+    assert.equal(store.loading.reminders, false)
+    assert.equal(store.errors.reminders, null)
+  } finally {
+    Object.assign(remindersApi, originals)
+  }
+})
+
+test('service data store preserves reminders when update or cancel fails', async () => {
+  setup()
+  const originals = {
+    update: remindersApi.update,
+    cancel: remindersApi.cancel,
+  }
+  const existingReminder = {
+    reminderId: 'r-2',
+    title: '복약 시간',
+    billId: 'b-2',
+    scheduledAt: '2026-09-12T08:00:00+09:00',
+    status: 'SCHEDULED',
+  }
+  remindersApi.update = async () => {
+    throw new Error('temporary update failure')
+  }
+  remindersApi.cancel = async () => {
+    throw new Error('temporary cancel failure')
+  }
+
+  try {
+    const store = useServiceDataStore()
+    store.reminders = [existingReminder]
+
+    await assert.rejects(() => store.updateReminder('r-2', { title: '복약 시간 변경' }))
+    assert.deepEqual(store.reminders, [existingReminder])
+    assert.equal(store.loading.reminders, false)
+    assert.match(store.errors.reminders.message, /알림을 변경하지 못했어요/)
+
+    await assert.rejects(() => store.cancelReminder('r-2'))
+    assert.deepEqual(store.reminders, [existingReminder])
+    assert.equal(store.loading.reminders, false)
+    assert.match(store.errors.reminders.message, /알림을 취소하지 못했어요/)
+  } finally {
+    Object.assign(remindersApi, originals)
+  }
+})
+
 test('service data store loads nearby mobile branches with location coordinates', async () => {
   setup()
   const originalNearby = mobileBranchesApi.nearby
