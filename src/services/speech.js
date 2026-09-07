@@ -1,5 +1,12 @@
 import { VOICE_OPTIONS } from '../features/onboarding/contract.js'
 
+import {
+  hasSpeechCredential,
+  isAzureSpeaking,
+  speakSsmlWithAzure,
+  stopAzureSpeech,
+} from './azureSpeech.js'
+
 /**
  * 브라우저 speechSynthesis 기반 TTS 재생 레이어.
  *
@@ -42,8 +49,19 @@ export function isSpeechSupported() {
 }
 
 export function isSpeaking() {
+  if (isAzureSpeaking()) return true
+
   const engine = synthesis()
   return Boolean(engine?.speaking || engine?.pending)
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
 }
 
 function clamp(value, min, max, fallback) {
@@ -120,8 +138,36 @@ function startKeepAlive(utteranceId) {
   }, KEEP_ALIVE_INTERVAL_MS)
 }
 
+/**
+ * 서버가 SSML을 함께 내려주면 그대로 쓴다. 목소리·속도·피치·음량이 이미 들어 있다.
+ * 세션 첫 안내처럼 SSML이 없을 때만 같은 형식으로 만들어 붙인다.
+ * 만들지 않으면 첫 안내만 사용자가 정한 속도를 무시하고 나간다.
+ */
+function ssmlFor(content, settings) {
+  const provided = String(settings.ttsSsml ?? '').trim()
+  if (provided) return provided
+
+  const voice = VOICE_OPTIONS.some(({ value }) => value === settings.ttsVoice)
+    ? settings.ttsVoice
+    : VOICE_OPTIONS[0].value
+  const rate = clamp(settings.speechRateMultiplier, RATE_MIN, RATE_MAX, 1).toFixed(2)
+  const volume = clamp(settings.volumeMultiplier, VOLUME_MIN, VOLUME_MAX, 1)
+  const volumeAttribute = volume === 1 ? '100' : `+${Math.round((volume - 1) * 100)}%`
+  const pitchAttribute = `${Math.round((FIXED_PITCH - 1) * 100)}%`
+
+  return (
+    '<speak version="1.0" xml:lang="ko-KR" xmlns="http://www.w3.org/2001/10/synthesis">' +
+    `<voice name="${voice}">` +
+    `<prosody rate="${rate}" pitch="${pitchAttribute}" volume="${volumeAttribute}">` +
+    escapeXml(content) +
+    '</prosody></voice></speak>'
+  )
+}
+
 /** 재생 중인 안내를 즉시 멈춘다. 마이크 입력 직전과 화면 이탈 시 호출한다. */
 export function stop() {
+  stopAzureSpeech()
+
   const engine = synthesis()
   activeUtteranceId += 1
   stopKeepAlive()
@@ -131,13 +177,25 @@ export function stop() {
 /**
  * 안내 문구를 읽어준다. 앞선 재생은 취소한다.
  *
+ * 인증 토큰이 있으면 Azure Speech로 읽고, 실패하면 브라우저 음성으로 되돌린다.
+ *
  * @param {string} text 서버가 내려준 ttsText
- * @param {{ ttsVoice?: string, speechRateMultiplier?: number, volumeMultiplier?: number }} settings
+ * @param {{ ttsVoice?: string, speechRateMultiplier?: number, volumeMultiplier?: number,
+ *   ttsSsml?: string, speechCredential?: { token: string, region: string } }} settings
  * @returns {Promise<{ spoken: boolean, reason: string|null }>}
  */
 export async function speak(text, settings = {}) {
   const content = String(text ?? '').trim()
   if (!content) return { spoken: false, reason: 'EMPTY_TEXT' }
+
+  if (hasSpeechCredential(settings.speechCredential)) {
+    try {
+      return await speakSsmlWithAzure(ssmlFor(content, settings), settings.speechCredential)
+    } catch {
+      // 토큰 만료·네트워크 실패로 Azure가 안 되면 브라우저 음성으로 읽어준다.
+    }
+  }
+
   if (!isSpeechSupported()) return { spoken: false, reason: 'UNSUPPORTED' }
 
   stop()

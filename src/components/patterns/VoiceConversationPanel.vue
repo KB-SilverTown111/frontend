@@ -97,8 +97,8 @@ const requiredSlotRows = computed(() => toRows(voiceStore.requiredSlot))
 
 async function ensureSession() {
   if (voiceStore.sessionId) return
+  // 음성 토큰은 재생 직전에 스토어가 알아서 받고 갱신한다.
   await voiceStore.startSession(props.entryPoint)
-  await voiceStore.issueSpeechToken().catch(() => {})
 }
 
 async function listen() {
