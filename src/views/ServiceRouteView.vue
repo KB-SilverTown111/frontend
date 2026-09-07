@@ -873,7 +873,10 @@ onMounted(() => {
         </Card>
       </main>
 
-      <footer v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)">
+      <footer
+        v-if="screen && !hideScreenActions && (screen.primaryLabel || screen.secondaryLabel)"
+        class="app-actions service-route-actions"
+      >
         <Button
           v-if="screen.primaryLabel"
           class="service-route-primary"
