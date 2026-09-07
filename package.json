@@ -24,7 +24,8 @@
     "test:camera": "node --test scripts/camera.test.mjs",
     "test:design-system": "node --test scripts/design-system.test.mjs",
     "test:font-scale": "node --test scripts/font-scale.test.mjs",
-    "test:my-page": "node --test scripts/my-page.test.mjs"
+    "test:my-page": "node --test scripts/my-page.test.mjs",
+    "test:navigation": "node --test scripts/navigation.test.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,vue}": [

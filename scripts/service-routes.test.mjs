@@ -94,13 +94,58 @@ test('production action routes follow the service flow instead of raw screen ord
     params: { stepId: 'login' },
   })
   assert.deepEqual(getProductionActionRoutes('living', '4-13').primary, {
-    name: 'voice-screen',
+    name: 'my-page',
+  })
+  assert.deepEqual(getProductionActionRoutes('living', '4-22').primary, {
+    name: 'my-page',
+  })
+  assert.deepEqual(getProductionActionRoutes('voice', '5-01').primary, {
+    name: 'my-page-voice',
     params: { screenId: '5-02' },
+  })
+  assert.deepEqual(getProductionActionRoutes('voice', '5-02').primary, {
+    name: 'my-page',
   })
   assert.deepEqual(getProductionActionRoutes('voice', '5-08').primary, {
     name: 'transfer-screen',
     params: { screenId: '2-02' },
   })
+})
+
+test('voice selection screens reject legacy routes and allow only the my page flow', () => {
+  const voiceRoute = routes.find(({ name }) => name === 'voice-screen')
+  const livingRoute = routes.find(({ name }) => name === 'living-screen')
+  const myPageVoiceRoute = routes.find(({ name }) => name === 'my-page-voice')
+
+  assert.deepEqual(
+    voiceRoute?.beforeEnter?.(
+      { params: { screenId: '5-01' } },
+      { name: 'living-screen', params: { screenId: '4-13' } },
+    ),
+    { name: 'my-page' },
+  )
+  assert.deepEqual(
+    livingRoute?.beforeEnter?.({ params: { screenId: '4-13' } }, { name: 'living-home' }),
+    { name: 'my-page' },
+  )
+  assert.deepEqual(
+    voiceRoute?.beforeEnter?.(
+      { params: { screenId: '5-02' } },
+      { name: 'voice-screen', params: { screenId: '5-01' } },
+    ),
+    { name: 'my-page' },
+  )
+  assert.equal(
+    myPageVoiceRoute?.beforeEnter?.({ params: { screenId: '5-01' } }, { name: 'my-page' }),
+    true,
+  )
+  assert.equal(
+    myPageVoiceRoute?.beforeEnter?.(
+      { params: { screenId: '5-02' } },
+      { name: 'my-page-voice', params: { screenId: '5-01' } },
+    ),
+    true,
+  )
 })
 
 test('home actions point to production detail routes', () => {

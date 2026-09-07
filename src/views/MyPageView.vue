@@ -58,6 +58,17 @@ async function handleLogout() {
             <b aria-hidden="true">›</b>
           </RouterLink>
           <RouterLink
+            aria-label="목소리 변경 열기"
+            class="my-page-card"
+            :to="{ name: 'my-page-voice', params: { screenId: '5-01' } }"
+          >
+            <span>
+              <strong>목소리 변경</strong>
+              <small>안내 음성과 말하기 속도를 바꿉니다.</small>
+            </span>
+            <b aria-hidden="true">›</b>
+          </RouterLink>
+          <RouterLink
             aria-label="가입 정보 열기"
             class="my-page-card"
             :to="{ name: 'living-screen', params: { screenId: '4-14' } }"
@@ -89,10 +100,23 @@ async function handleLogout() {
         aria-label="주요 메뉴"
         class="app-bottom-nav four-items my-page-bottom-nav"
       >
-        <RouterLink :to="{ name: 'transfer-home' }">홈</RouterLink>
-        <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
-        <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
         <RouterLink
+          replace
+          :to="{ name: 'transfer-home' }"
+          >홈</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'bills-home' }"
+          >고지서</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'living-home' }"
+          >생활금융</RouterLink
+        >
+        <RouterLink
+          replace
           aria-current="page"
           :to="{ name: 'my-page' }"
         >

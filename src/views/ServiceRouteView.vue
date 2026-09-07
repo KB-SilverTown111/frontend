@@ -4,6 +4,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { goBackOrReplace } from '@/router/navigation.js'
 import { stripProductionSelectionIndicators } from '@/services/screenContent.js'
 import { withAppLoading } from '@/services/appLoading.js'
 import {
@@ -63,7 +64,9 @@ let loadSequence = 0
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
 const homeRoute = computed(() => getProductionHomeRoute(service.value))
 const isMyPageDetail = computed(
-  () => service.value === 'living' && ['4-14', '4-15', '4-16'].includes(screenId.value),
+  () =>
+    (service.value === 'living' && ['4-14', '4-15', '4-16'].includes(screenId.value)) ||
+    Boolean(route.meta?.myPageVoice),
 )
 const backRoute = computed(() => (isMyPageDetail.value ? { name: 'my-page' } : homeRoute.value))
 const primaryRoute = computed(() => actionRoutes.value.primary)
@@ -73,6 +76,14 @@ const VOICE_CONVERSATION_SCREENS = {
   voice: ['5-08'],
 }
 const VOICE_SERVICES = Object.keys(VOICE_CONVERSATION_SCREENS)
+const REPLACE_TARGETS = new Set([
+  'bills-home',
+  'living-home',
+  'my-page',
+  'onboarding',
+  'transfer-home',
+  'voice-home',
+])
 
 const showVoiceControl = computed(() =>
   (VOICE_CONVERSATION_SCREENS[service.value] ?? []).includes(screenId.value),
@@ -494,7 +505,14 @@ async function loadScreen() {
 }
 
 async function go(target) {
-  if (target) await router.push(target)
+  if (!target) return
+
+  if (REPLACE_TARGETS.has(target.name)) {
+    await router.replace(target)
+    return
+  }
+
+  await router.push(target)
 }
 
 async function uploadBill(source, capturedImage = null) {
@@ -824,6 +842,10 @@ function openVoice() {
   router.push({ name: 'voice-screen', params: { screenId: '5-08' } })
 }
 
+function goBack() {
+  return goBackOrReplace(router, backRoute.value)
+}
+
 /** 서비스를 완전히 벗어날 때만 세션을 닫는다. 같은 서비스 안의 화면 이동은 유지한다. */
 onBeforeRouteLeave((to) => {
   cleanupBillCamera()
@@ -850,9 +872,10 @@ onMounted(() => {
     <article class="mobile-app-shell service-route-device">
       <header class="app-header">
         <RouterLink
-          :aria-label="isMyPageDetail ? '마이페이지로' : '서비스 홈으로'"
+          aria-label="이전 화면"
           class="app-header-button service-route-back"
           :to="backRoute"
+          @click.prevent="goBack"
         >
           ‹
         </RouterLink>
@@ -1448,10 +1471,26 @@ onMounted(() => {
         aria-label="주요 메뉴"
         class="app-bottom-nav four-items service-route-bottom-nav"
       >
-        <RouterLink :to="{ name: 'transfer-home' }">홈</RouterLink>
-        <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
-        <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
-        <RouterLink :to="{ name: 'my-page' }">마이페이지</RouterLink>
+        <RouterLink
+          replace
+          :to="{ name: 'transfer-home' }"
+          >홈</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'bills-home' }"
+          >고지서</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'living-home' }"
+          >생활금융</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'my-page' }"
+          >마이페이지</RouterLink
+        >
       </nav>
     </article>
   </div>

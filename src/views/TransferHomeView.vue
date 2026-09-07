@@ -117,14 +117,27 @@ function startVoiceTransfer() {
         class="app-bottom-nav four-items transfer-bottom-nav"
       >
         <RouterLink
+          replace
           :to="{ name: 'transfer-home' }"
           aria-current="page"
         >
           홈
         </RouterLink>
-        <RouterLink :to="{ name: 'bills-home' }">고지서</RouterLink>
-        <RouterLink :to="{ name: 'living-home' }">생활금융</RouterLink>
-        <RouterLink :to="{ name: 'my-page' }">마이페이지</RouterLink>
+        <RouterLink
+          replace
+          :to="{ name: 'bills-home' }"
+          >고지서</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'living-home' }"
+          >생활금융</RouterLink
+        >
+        <RouterLink
+          replace
+          :to="{ name: 'my-page' }"
+          >마이페이지</RouterLink
+        >
       </nav>
     </article>
   </div>

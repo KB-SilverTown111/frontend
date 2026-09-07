@@ -18,6 +18,8 @@ const serviceLabels = {
   voice: '공통 음성',
 }
 
+const VOICE_SETTINGS_SCREEN_IDS = ['5-01', '5-02']
+
 const referenceScreenLoaders = {
   transfer: () => import('./screenData/transfer.js'),
   bills: () => import('./screenData/bills.js'),
@@ -37,7 +39,8 @@ export const productionServiceScreens = Object.fromEntries(
 )
 
 const screenRoute = (service, screenId) => ({
-  name: `${service}-screen`,
+  name:
+    service === 'voice' && isVoiceSettingsScreen(screenId) ? 'my-page-voice' : `${service}-screen`,
   params: { screenId },
 })
 
@@ -116,7 +119,7 @@ const actionRoutes = {
     '4-11': { primary: '4-10' },
     '4-12': { primary: '4-10', secondary: '4-10' },
     '4-13': {
-      primary: { name: 'voice-screen', params: { screenId: '5-02' } },
+      primary: { name: 'my-page' },
       secondary: homeRoute('living'),
     },
     '4-14': { primary: homeRoute('living'), secondary: homeRoute('living') },
@@ -128,7 +131,7 @@ const actionRoutes = {
     '4-20': { primary: '4-10', secondary: homeRoute('living') },
     '4-21': { primary: '4-10', secondary: homeRoute('living') },
     '4-22': {
-      primary: { name: 'voice-screen', params: { screenId: '5-02' } },
+      primary: { name: 'my-page' },
       secondary: homeRoute('living'),
     },
     '4-23': { primary: { name: 'voice-screen', params: { screenId: '5-07' } }, secondary: '4-06' },
@@ -138,14 +141,14 @@ const actionRoutes = {
   },
   voice: {
     '5-01': { primary: '5-02', secondary: '5-01' },
-    '5-02': { primary: homeRoute('living'), secondary: '5-01' },
+    '5-02': { primary: { name: 'my-page' }, secondary: '5-01' },
     '5-03': { primary: '5-03', secondary: '5-04' },
-    '5-04': { primary: homeRoute('living'), secondary: '5-01' },
+    '5-04': { primary: homeRoute('living'), secondary: { name: 'my-page' } },
     '5-05': {
       primary: { name: 'transfer-screen', params: { screenId: '2-02' } },
-      secondary: '5-01',
+      secondary: { name: 'my-page' },
     },
-    '5-06': { primary: '5-01', secondary: homeRoute('transfer') },
+    '5-06': { primary: { name: 'my-page' }, secondary: homeRoute('transfer') },
     '5-07': { primary: '5-07', secondary: homeRoute('bills') },
     '5-08': {
       primary: { name: 'transfer-screen', params: { screenId: '2-02' } },
@@ -156,6 +159,10 @@ const actionRoutes = {
 
 export function resolveProductionScreen(service, screenId) {
   return productionServiceScreens[service]?.find(({ screenId: id }) => id === screenId) ?? null
+}
+
+export function isVoiceSettingsScreen(screenId) {
+  return VOICE_SETTINGS_SCREEN_IDS.includes(screenId)
 }
 
 export async function loadProductionScreen(service, screenId) {

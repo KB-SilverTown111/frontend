@@ -33,7 +33,7 @@ test('successful signup goes directly to the transfer home screen', async () => 
   assert.doesNotMatch(submitFunction, /go\('complete'\)/)
   assert.match(submitFunction, /store\.finishUiFlow\(\)/)
   assert.match(submitFunction, /requestAppIntent\('home'\)/)
-  assert.match(submitFunction, /return router\.push\(\{ name: 'transfer-home' \}\)/)
+  assert.match(submitFunction, /return requestAppIntent\('home'\)/)
   assert.ok(
     submitFunction.indexOf('store.finishUiFlow()') <
       submitFunction.indexOf("requestAppIntent('home')"),
@@ -93,7 +93,10 @@ test('start screen shows back navigation to login', async () => {
 
   assert.notEqual(start, -1)
   assert.notEqual(end, -1)
-  assert.match(source.slice(start, end), /screenId\.value === 'start'\) return go\('login'\)/)
+  assert.match(
+    source.slice(start, end),
+    /screenId\.value === 'start'[\s\S]*goBackOrReplace\(router,[\s\S]*stepId: 'login'/,
+  )
 })
 
 test('onboarding shell receives a readable progress indicator', async () => {
@@ -268,4 +271,19 @@ test('mobile app chrome reserves space around system bars', async () => {
     mobileStyles,
     /\.mobile-app-shell\s*\{[\s\S]*?--app-safe-area-top:\s*max\(16px, env\(safe-area-inset-top\)\);[\s\S]*?--app-safe-area-bottom:\s*max\(12px, env\(safe-area-inset-bottom\)\);/,
   )
+})
+
+test('postcode overlay is contained by the scrollable app content', async () => {
+  const styleSource = await readFile(
+    new URL('../src/styles/onboarding.css', import.meta.url),
+    'utf8',
+  )
+  const appMain = styleSource.match(/\.app-main\s*\{([\s\S]*?)\}/)?.[1]
+  const postcodeOverlay = styleSource.match(/\.postcode-overlay\s*\{([\s\S]*?)\}/)?.[1]
+
+  assert.ok(appMain, 'app main should have a dedicated layout rule')
+  assert.ok(postcodeOverlay, 'postcode overlay should have a dedicated layout rule')
+  assert.match(appMain, /position:\s*relative;/)
+  assert.match(postcodeOverlay, /position:\s*absolute;/)
+  assert.match(postcodeOverlay, /inset:\s*0 0 var\(--app-safe-area-bottom\);/)
 })
