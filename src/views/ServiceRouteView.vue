@@ -282,6 +282,23 @@ const isBusy = computed(
     (isMobileBranchListScreen.value &&
       (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
 )
+/** 2-19는 어디까지 하셨는지 실제 초안 내용으로 보여준다. */
+const unfinishedTransferRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-19') return []
+
+  const prepared = transferStore.prepared
+  if (!prepared) return []
+
+  const recipient = prepared.recipient || transferStore.recipient || {}
+  return [
+    {
+      label: '받는 분',
+      value: recipient.displayName || recipient.name || transferStore.recipientName || '받는 분',
+    },
+    { label: '보내려던 금액', value: formatCurrency(prepared.amount ?? transferStore.amount) },
+  ]
+})
+
 /** 2-20은 돈이 나가지 않았음을 남은 잔액으로 확인시켜 준다. */
 const remainingBalanceRows = computed(() => {
   if (service.value !== 'transfer' || screenId.value !== '2-20') return []
@@ -1046,6 +1063,18 @@ async function handlePrimary() {
     }
     return
   }
+  if (service.value === 'transfer' && screenId.value === '2-19') {
+    if (!transferStore.transferId) {
+      transferStore.discardDraft()
+      return go(homeRoute.value)
+    }
+    // 초안이 이미 있으므로 계좌·금액을 다시 고르지 않고 최종 확인으로 간다.
+    return go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+  }
+  if (service.value === 'transfer' && screenId.value === '2-21') {
+    transferStore.reset()
+    return go({ name: 'transfer-screen', params: { screenId: '2-02' } })
+  }
   if (service.value === 'transfer' && screenId.value === '2-22' && transferStore.transferId) {
     if (!transferStore.confirmationCompleted || !transferStore.authenticationCompleted) {
       actionError.value = '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.'
@@ -1093,6 +1122,11 @@ async function handleSecondary() {
   if (isReminderEditScreen.value) {
     showReminderCancelConfirm.value = true
     return
+  }
+  // "없던 일로 하기"는 화면만 넘기지 않고 남아 있던 초안을 실제로 되돌린다.
+  if (service.value === 'transfer' && screenId.value === '2-19') {
+    if (transferStore.transferId) await transferStore.cancel().catch(() => {})
+    transferStore.discardDraft()
   }
   return go(secondaryRoute.value)
 }
@@ -1891,6 +1925,27 @@ onMounted(() => {
             </div>
           </div>
         </section>
+        <section
+          v-if="unfinishedTransferRows.length"
+          aria-label="하시던 송금"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>여기까지 하셨어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in unfinishedTransferRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+
         <section
           v-if="remainingBalanceRows.length"
           aria-label="남은 잔액"
