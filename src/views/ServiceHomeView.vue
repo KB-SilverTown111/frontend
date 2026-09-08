@@ -15,18 +15,7 @@ const serviceScreens = {
   bills: {
     title: '고지서 목록',
     description: '등록된 고지서 상태와 납부기한을 봅니다.',
-    groups: [
-      [
-        {
-          label: '전기요금 · 48,200원',
-          to: { name: 'bills-screen', params: { screenId: '3-04' } },
-        },
-        {
-          label: '통신요금 · 납부 완료',
-          to: { name: 'bills-screen', params: { screenId: '3-07' } },
-        },
-      ],
-    ],
+    groups: [],
     primaryLabel: '고지서 등록',
     primaryTo: { name: 'bills-screen', params: { screenId: '3-02' } },
   },
@@ -59,7 +48,8 @@ const serviceScreens = {
 const service = computed(() => (route.name === 'living-home' ? 'living' : 'bills'))
 const screen = computed(() => serviceScreens[service.value])
 const visibleGroups = computed(() => {
-  if (service.value !== 'bills' || !serviceData.bills.length) return screen.value.groups
+  if (service.value !== 'bills') return screen.value.groups
+  if (!serviceData.bills.length) return []
 
   return [
     serviceData.bills.slice(0, 4).map((bill) => ({
@@ -152,6 +142,26 @@ function startVoiceAssist() {
         <div class="service-home-content">
           <Card class="service-list-card">
             <CardContent class="service-list-content">
+              <p
+                v-if="service === 'bills' && serviceData.loading.bills"
+                class="service-home-data-summary"
+                aria-live="polite"
+              >
+                고지서 정보를 불러오고 있어요.
+              </p>
+              <p
+                v-else-if="service === 'bills' && serviceData.errors.bills"
+                class="service-home-data-error"
+                role="alert"
+              >
+                고지서 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+              </p>
+              <p
+                v-else-if="service === 'bills' && !serviceData.bills.length"
+                class="service-home-data-summary"
+              >
+                등록된 고지서가 없어요. 아래에서 고지서를 등록해 주세요.
+              </p>
               <div
                 v-for="(group, groupIndex) in visibleGroups"
                 :key="groupIndex"
@@ -176,14 +186,11 @@ function startVoiceAssist() {
             {{ dataSummary }}
           </p>
           <p
-            v-if="
-              serviceData.errors[service === 'bills' ? 'bills' : 'reminders'] ||
-              (service === 'bills' && serviceData.errors.monthlySummary)
-            "
+            v-if="serviceData.errors[service === 'living' ? 'reminders' : 'monthlySummary']"
             class="service-home-data-error"
             role="status"
           >
-            서버 정보를 불러오지 못했어요. 화면의 기본 안내는 계속 이용할 수 있어요.
+            서버 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
           </p>
         </div>
         <footer

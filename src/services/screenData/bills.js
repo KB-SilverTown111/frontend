@@ -5,7 +5,7 @@ export default [
     title: '고지서 목록',
     description: '등록된 고지서 상태와 납부기한을 봅니다.',
     contentHtml:
-      '<div class="choices"><div class="choice active"><span>전기요금 · 48,200원</span><i>✓</i></div><div class="choice "><span>통신요금 · 납부 완료</span><i></i></div></div>',
+      '<div class="note"><b>안내</b><span>서버에 등록된 고지서만 표시합니다.</span></div>',
     primaryLabel: '고지서 등록',
     secondaryLabel: '',
     variant: 'default',
@@ -56,7 +56,7 @@ export default [
     title: '인식 결과 확인',
     description: '추출된 필드를 납부 전에 검토합니다.',
     contentHtml:
-      '<div class="meta"><span>기관</span><strong>한국전력</strong></div><div class="meta"><span>납부 금액</span><strong>48,200원</strong></div><div class="meta"><span>납부 기한</span><strong>2026.09.10</strong></div>',
+      '<div class="note"><b>안내</b><span>아래 서버 인식 결과를 납부 전에 확인해 주세요.</span></div>',
     primaryLabel: '내용 확인',
     secondaryLabel: '',
     variant: 'default',
@@ -69,7 +69,7 @@ export default [
     title: '낮은 신뢰도 수정',
     description: '확실하지 않은 필드만 직접 수정합니다.',
     contentHtml:
-      '<section class="hero warn"><div class="hero-icon">?</div><div><strong>금액을 다시 확인해 주세요</strong><p>인식 정확도가 낮은 항목입니다.</p></div></section><div class="field focus"><span>48,200원</span><b>›</b></div><div class="note"><b>안내</b><span>전체 양식을 다시 입력하게 하지 않습니다.</span></div>',
+      '<section class="hero warn"><div class="hero-icon">?</div><div><strong>고지서 정보를 다시 확인해 주세요</strong><p>인식 정확도가 낮은 항목입니다.</p></div></section><div class="note"><b>안내</b><span>아래 서버 인식 결과를 확인한 뒤 다시 진행해 주세요.</span></div>',
     primaryLabel: '수정 완료',
     secondaryLabel: '',
     variant: 'warning',
@@ -82,7 +82,7 @@ export default [
     title: '납부 최종 확인',
     description: '출금 계좌와 납부 내용을 확인합니다.',
     contentHtml:
-      '<div class="meta"><span>납부처</span><strong>한국전력</strong></div><div class="meta"><span>금액</span><strong>48,200원</strong></div><div class="meta"><span>출금 계좌</span><strong>신한 · 1234</strong></div>',
+      '<div class="note"><b>안내</b><span>아래 확인된 납부 내용을 확인한 뒤 납부해 주세요.</span></div>',
     primaryLabel: '납부하기',
     secondaryLabel: '',
     variant: 'default',
@@ -95,7 +95,7 @@ export default [
     title: '납부 완료',
     description: '결제 식별자와 상태만 제공합니다.',
     contentHtml:
-      '<section class="hero "><div class="hero-icon">✓</div><div><strong>납부가 완료됐어요</strong><p>한국전력 48,200원</p></div></section><div class="meta"><span>결제 번호</span><strong>PAY-260902-41</strong></div><div class="meta"><span>처리 시각</span><strong>오후 3:12</strong></div><div class="note"><b>안내</b><span>영수증 보기와 즉시 잔액은 제외했습니다.</span></div>',
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>납부가 완료됐어요</strong><p>서버에서 처리한 실제 결과를 보여드려요.</p></div></section><div class="note"><b>안내</b><span>결제 번호와 처리 시각은 실제 응답으로 안내합니다.</span></div>',
     primaryLabel: '확인',
     secondaryLabel: '',
     variant: 'default',
@@ -173,7 +173,7 @@ export default [
     title: '중복 요청 처리',
     description: '같은 납부 요청은 최초 결과를 재사용합니다.',
     contentHtml:
-      '<section class="hero "><div class="hero-icon">✓</div><div><strong>이미 처리된 요청이에요</strong><p>처음 완료된 결과를 안전하게 보여드립니다.</p></div></section><div class="meta"><span>상태</span><strong>완료</strong></div><div class="meta"><span>결제 번호</span><strong>PAY-260902-41</strong></div>',
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>이미 처리된 요청이에요</strong><p>처음 완료된 서버 결과를 안전하게 보여드립니다.</p></div></section><div class="meta"><span>상태</span><strong>서버 응답 확인</strong></div>',
     primaryLabel: '결과 확인',
     secondaryLabel: '',
     variant: 'default',
@@ -186,7 +186,7 @@ export default [
     title: '납부번호 확인',
     description: '읽어낸 납부번호를 확인합니다.',
     contentHtml:
-      '<section class="hero "><div class="hero-icon">✓</div><div><strong>납부번호를 읽었어요</strong><p>숫자가 맞는지 봐주세요.</p></div></section><div class="field focus"><span>납부번호</span><b>0123-4567-89</b></div><div class="note"><b>안내</b><span>한 자리만 달라도 다른 곳으로 가요.</span></div>',
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>납부번호를 읽었어요</strong><p>서버 인식 결과가 맞는지 봐주세요.</p></div></section><div class="note"><b>안내</b><span>한 자리만 달라도 다른 곳으로 가요.</span></div>',
     primaryLabel: '맞아요',
     secondaryLabel: '고칠게요',
     variant: 'default',
@@ -212,7 +212,7 @@ export default [
     title: '읽어드릴게요',
     description: '고지서 내용을 소리로 확인합니다.',
     contentHtml:
-      '<div class="voice"><span class="glow g1"></span><span class="glow g2"></span><div class="mic-wrap"><span class="pulse p1"></span><span class="pulse p2"></span><span class="mic"><span class="mic-body"></span><span class="mic-stem"></span></span></div><div class="wave"><i style="height:12px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:46px"></i><i style="height:28px"></i><i style="height:54px"></i><i style="height:64px"></i><i style="height:42px"></i><i style="height:58px"></i><i style="height:36px"></i><i style="height:50px"></i><i style="height:24px"></i><i style="height:38px"></i><i style="height:18px"></i><i style="height:12px"></i></div><p class="vstat"><span class="live"></span>읽어드리는 중</p></div><div class="stt done"><div class="stt-head"><span class="stt-dot"></span>읽고 있는 내용</div><p class="stt-text">전기요금 48,200원, 이달 25일까지</p></div>',
+      '<div class="voice"><span class="glow g1"></span><span class="glow g2"></span><div class="mic-wrap"><span class="pulse p1"></span><span class="pulse p2"></span><span class="mic"><span class="mic-body"></span><span class="mic-stem"></span></span></div><div class="wave"><i style="height:12px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:46px"></i><i style="height:28px"></i><i style="height:54px"></i><i style="height:64px"></i><i style="height:42px"></i><i style="height:58px"></i><i style="height:36px"></i><i style="height:50px"></i><i style="height:24px"></i><i style="height:38px"></i><i style="height:18px"></i><i style="height:12px"></i></div><p class="vstat"><span class="live"></span>읽어드리는 중</p></div><div class="stt done"><div class="stt-head"><span class="stt-dot"></span>읽고 있는 내용</div><p class="stt-text">서버에서 인식한 고지서 내용을 읽어드려요.</p></div>',
     primaryLabel: '다시 듣기',
     secondaryLabel: '음성 끄기',
     variant: 'default',
@@ -264,7 +264,7 @@ export default [
     title: '지난 고지서',
     description: '저장해 둔 고지서를 봅니다.',
     contentHtml:
-      '<section class="hero "><div class="hero-icon">✓</div><div><strong>전기요금 · 5월분</strong><p>이미 납부를 마친 고지서예요.</p></div></section><div class="meta"><span>납부한 금액</span><b>48,200원</b></div><div class="meta"><span>납부한 날</span><b>5월 24일</b></div><div class="meta"><span>납부번호</span><b>0123-4567-89</b></div>',
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>지난 고지서</strong><p>서버에 저장된 납부 결과를 확인합니다.</p></div></section><div class="note"><b>안내</b><span>실제 고지서 정보가 있을 때 결과를 보여드립니다.</span></div>',
     primaryLabel: '영수증 보기',
     secondaryLabel: '목록으로',
     variant: 'default',
@@ -277,7 +277,7 @@ export default [
     title: '납부하는 중',
     description: '지금 납부를 처리하고 있습니다.',
     contentHtml:
-      '<section class="hero "><div class="hero-icon">✓</div><div><strong>은행에 보내고 있어요</strong><p>잠시만 기다려 주세요.</p></div></section><div class="steps"><i class="on"></i><i class="on"></i><i class=""></i></div><div class="amount"><small>납부 금액</small><strong>48,200원</strong></div>',
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>은행에 보내고 있어요</strong><p>잠시만 기다려 주세요.</p></div></section><div class="steps"><i class="on"></i><i class="on"></i><i class=""></i></div><div class="note"><b>안내</b><span>납부 금액은 서버 처리 결과로 확인합니다.</span></div>',
     primaryLabel: '',
     secondaryLabel: '기다리는 중…',
     variant: 'default',
@@ -290,7 +290,7 @@ export default [
     title: '납부하지 못했어요',
     description: '서버에서 처리하지 못했습니다.',
     contentHtml:
-      '<section class="hero danger"><div class="hero-icon">!</div><div><strong>잠시 문제가 생겼어요</strong><p>돈은 빠져나가지 않았어요.</p></div></section><div class="meta"><span>다시 해보실 시각</span><b>잠시 후</b></div>',
+      '<section class="hero danger"><div class="hero-icon">!</div><div><strong>납부하지 못했어요</strong><p>서버 응답에 따라 납부가 완료되지 않았어요.</p></div></section><div class="meta"><span>다시 해보실 시각</span><b>잠시 후</b></div>',
     primaryLabel: '다시 시도하기',
     secondaryLabel: '나중에 하기',
     variant: 'destructive',

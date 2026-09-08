@@ -79,8 +79,9 @@ test('service navigation routes use production service screens', () => {
 })
 
 test('production service homes are based on reference copy without using prototype views', () => {
-  for (const copy of ['고지서 목록', '내 정보', '전기요금 · 48,200원', '내 계좌']) {
+  for (const copy of ['고지서 목록', '내 정보', '등록된 고지서가 없어요', '내 계좌']) {
     assert.match(serviceHomeSource, new RegExp(copy))
   }
+  assert.doesNotMatch(serviceHomeSource, /전기요금 · 48,200원|통신요금 · 납부 완료/)
   assert.doesNotMatch(serviceHomeSource, /prototype-stage|PrototypeScreenView/)
 })

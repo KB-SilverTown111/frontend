@@ -101,6 +101,40 @@ test('bill OCR uses multipart image and voice session fields', async () => {
   }
 })
 
+test('bill confirmation forwards the confirmation values and execution key', async () => {
+  const requests = []
+  const restore = useAdapter((config) => {
+    requests.push(config)
+  })
+
+  try {
+    await billsApi.confirm('bill-1', {
+      approved: true,
+      confirmedPayee: '한국전력',
+      confirmedAmount: 48200,
+      confirmedDueDate: '2026-09-10',
+    })
+    await billsApi.execute(
+      'bill-1',
+      { confirmationToken: 'confirmation-1' },
+      { idempotencyKey: 'bill-key' },
+    )
+
+    assert.equal(requests[0].url, '/bills/bill-1/confirm')
+    assert.deepEqual(JSON.parse(requests[0].data), {
+      approved: true,
+      confirmedPayee: '한국전력',
+      confirmedAmount: 48200,
+      confirmedDueDate: '2026-09-10',
+    })
+    assert.equal(requests[1].url, '/bills/bill-1/execute')
+    assert.equal(requests[1].headers['Idempotency-Key'], 'bill-key')
+    assert.deepEqual(JSON.parse(requests[1].data), { confirmationToken: 'confirmation-1' })
+  } finally {
+    restore()
+  }
+})
+
 test('reminder API uses list, create, update, and cancel paths with idempotency keys', async () => {
   const requests = []
   const restore = useAdapter((config) => {

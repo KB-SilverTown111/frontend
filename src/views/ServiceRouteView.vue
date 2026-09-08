@@ -114,6 +114,7 @@ const showVoiceControl = computed(() =>
 )
 const isBillSourceSelection = computed(() => service.value === 'bills' && screenId.value === '3-02')
 const isBillCameraScreen = computed(() => service.value === 'bills' && screenId.value === '3-02A')
+const isBillSuccessScreen = computed(() => service.value === 'bills' && screenId.value === '3-07')
 const isReminderListScreen = computed(() => service.value === 'living' && screenId.value === '4-06')
 const isReminderCreateScreen = computed(
   () => service.value === 'living' && screenId.value === '4-07',
@@ -199,6 +200,8 @@ const liveKind = computed(() => {
 })
 
 const liveTitle = computed(() => {
+  if (isBillSuccessScreen.value) return '납부 결과'
+
   const titles = {
     accounts: '내 계좌에서 불러온 정보',
     bill: '고지서 인식 결과',
@@ -221,6 +224,17 @@ const liveRows = computed(() => {
       label: account.accountName || account.accountType || '계좌',
       value: account.accountNumberMasked || formatCurrency(account.balance),
     }))
+  }
+  if (liveKind.value === 'bill' && isBillSuccessScreen.value && billStore.result) {
+    const paymentId = String(billStore.result?.paymentId ?? '').trim()
+    const amount = Number(billStore.result?.amount)
+    const paidAt = billStore.result?.paidAt
+
+    return [
+      paymentId ? { label: '결제 번호', value: paymentId } : null,
+      Number.isFinite(amount) ? { label: '납부 금액', value: formatCurrency(amount) } : null,
+      paidAt ? { label: '처리 시각', value: formatDateTime(paidAt) } : null,
+    ].filter(Boolean)
   }
   if (liveKind.value === 'bill' && billStore.bill) {
     return [
@@ -437,6 +451,20 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('ko-KR')
 }
 
+function formatDateTime(value) {
+  if (!value) return '처리 시각 확인 중'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return date.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function reminderIdentifier(reminder) {
   return String(reminder?.reminderId ?? reminder?.id ?? '').trim()
 }
@@ -621,6 +649,15 @@ function parsedTransferAmount() {
 async function loadContext(currentService, currentScreenId) {
   if (currentService === 'bills' && route.query.billId) {
     await billStore.load(String(route.query.billId)).catch(() => {})
+  }
+
+  if (
+    currentService === 'bills' &&
+    currentScreenId === '3-07' &&
+    billStore.result?.status !== 'SUCCESS'
+  ) {
+    await go({ name: 'bills-home' })
+    return { redirected: true }
   }
 
   if (currentService === 'living') {
@@ -1033,6 +1070,35 @@ async function confirmReminderCancel() {
   }
 }
 
+async function confirmBill() {
+  try {
+    const response = await billStore.confirm({
+      approved: true,
+      confirmedPayee: billStore.bill?.payee,
+      confirmedAmount: billStore.bill?.amount,
+      confirmedDueDate: billStore.bill?.dueDate,
+    })
+    if (
+      response?.status === 'RECONFIRM' ||
+      response?.status !== 'CONFIRMED' ||
+      response?.executable !== true ||
+      !response?.confirmationToken
+    ) {
+      if (screenId.value !== '3-05') {
+        await go({ name: 'bills-screen', params: { screenId: '3-05' } })
+        return
+      }
+
+      actionError.value = '입력한 고지서 정보를 다시 확인해 주세요.'
+      return
+    }
+
+    await go({ name: 'bills-screen', params: { screenId: '3-06' } })
+  } catch (error) {
+    actionError.value = error?.message || '고지서 정보를 확인하지 못했어요. 다시 시도해 주세요.'
+  }
+}
+
 async function handlePrimary() {
   if (!screen.value || isBusy.value) return
   actionError.value = ''
@@ -1043,16 +1109,8 @@ async function handlePrimary() {
   if (isReminderCreateScreen.value || isReminderEditScreen.value) return saveReminder()
 
   if (service.value === 'bills' && screenId.value === '3-02A') return captureBillFrame()
-  if (service.value === 'bills' && screenId.value === '3-04' && billStore.billId) {
-    await billStore
-      .confirm({
-        approved: true,
-        confirmedPayee: billStore.bill?.payee,
-        confirmedAmount: billStore.bill?.amount,
-        confirmedDueDate: billStore.bill?.dueDate,
-      })
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
+  if (service.value === 'bills' && ['3-04', '3-05'].includes(screenId.value) && billStore.billId) {
+    await confirmBill()
     return
   }
   if (service.value === 'bills' && screenId.value === '3-06' && billStore.billId) {
@@ -1065,13 +1123,6 @@ async function handlePrimary() {
   }
   if (service.value === 'bills' && screenId.value === '3-16') {
     await speakBill()
-    return
-  }
-  if (service.value === 'bills' && screenId.value === '3-05' && billStore.billId) {
-    await billStore
-      .confirm({ approved: true })
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
     return
   }
   if (service.value === 'transfer' && ['2-05', '2-17'].includes(screenId.value)) {
@@ -1415,11 +1466,35 @@ watch(
   async () => {
     if (service.value !== 'bills' || screenId.value !== '3-21') return
     if (!billStore.billId || billStore.busy) return
-    if (billStore.result) return
+    if (billStore.alreadyPaid) {
+      await go({ name: 'bills-screen', params: { screenId: '3-13' } })
+      return
+    }
+    if (billStore.result) {
+      await go({
+        name: 'bills-screen',
+        params: { screenId: billStore.result.status === 'SUCCESS' ? '3-07' : '3-22' },
+      })
+      return
+    }
+
+    const context = await loadContext(service.value, screenId.value)
+    if (context?.redirected) return
+    if (
+      billStore.bill?.status !== 'CONFIRMED' ||
+      billStore.bill?.executable !== true ||
+      !String(billStore.confirmationToken || '').trim()
+    ) {
+      await go({ name: 'bills-screen', params: { screenId: '3-05' } })
+      return
+    }
 
     try {
-      await billStore.execute()
-      await go({ name: 'bills-screen', params: { screenId: '3-07' } })
+      const response = await billStore.execute()
+      await go({
+        name: 'bills-screen',
+        params: { screenId: response?.status === 'SUCCESS' ? '3-07' : '3-22' },
+      })
     } catch (error) {
       actionError.value = error?.message || '납부하지 못했어요. 다시 시도해 주세요.'
       await go({ name: 'bills-screen', params: { screenId: '3-22' } })
