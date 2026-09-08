@@ -2,7 +2,7 @@ export function normalizeApiError(error) {
   const status = error?.response?.status ?? null
   const body = error?.response?.data
 
-  if (body && typeof body === 'object') {
+  if (error?.response && body && typeof body === 'object') {
     return {
       status,
       code: typeof body.code === 'string' ? body.code : 'REQUEST_FAILED',
@@ -12,6 +12,16 @@ export function normalizeApiError(error) {
           : '요청을 처리하지 못했어요. 다시 시도해 주세요.',
       requestId: typeof body.requestId === 'string' ? body.requestId : null,
       fieldErrors: Array.isArray(body.fieldErrors) ? body.fieldErrors : [],
+    }
+  }
+
+  if (error?.response) {
+    return {
+      status,
+      code: 'REQUEST_FAILED',
+      message: '요청을 처리하지 못했어요. 다시 시도해 주세요.',
+      requestId: null,
+      fieldErrors: [],
     }
   }
 

@@ -1535,7 +1535,11 @@ export function useServiceScreen() {
       screenKey.value === 'transfer-scheduled-edit' &&
       planTargetId.value
     ) {
-      transferPlanStore.removePlan(planTargetId.value)
+      const removed = transferPlanStore.removePlan(planTargetId.value)
+      if (!removed) {
+        actionError.value = transferPlanStore.error || '약속을 삭제하지 못했어요.'
+        return
+      }
       return go({ name: 'transfer-screen', params: { screenKey: 'transfer-scheduled-list' } })
     }
     // "없던 일로 하기"는 화면만 넘기지 않고 남아 있던 초안을 실제로 되돌린다.

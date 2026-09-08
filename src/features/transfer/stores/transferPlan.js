@@ -49,10 +49,8 @@ export const useTransferPlanStore = defineStore('transferPlan', () => {
   }
 
   /** 저장에 실패하면 메모리에만 남는다. 호출하는 쪽이 그걸 알아야 한다. */
-  function persist() {
-    const { plans: saved, saved: stored } = saveTransferPlans(plans.value)
-    plans.value = saved
-    return stored
+  function persist(nextPlans) {
+    return saveTransferPlans(nextPlans).saved
   }
 
   /** 저장할 수 없는 값이면 화면에 그대로 보여줄 문구를 남긴다. */
@@ -71,11 +69,12 @@ export const useTransferPlanStore = defineStore('transferPlan', () => {
     const plan = validate(input)
     if (!plan) return null
 
-    plans.value = [...plans.value, plan]
-    if (!persist()) {
+    const nextPlans = [...plans.value, plan]
+    if (!persist(nextPlans)) {
       error.value = '기록을 저장하지 못했어요. 잠시 후 다시 확인해 주세요.'
       return null
     }
+    plans.value = nextPlans
     return plan
   }
 
@@ -90,20 +89,31 @@ export const useTransferPlanStore = defineStore('transferPlan', () => {
     const plan = validate({ ...current, ...input, id: current.id })
     if (!plan) return null
 
-    plans.value = plans.value.map((item) => (item.id === plan.id ? plan : item))
-    if (!persist()) {
+    const nextPlans = plans.value.map((item) => (item.id === plan.id ? plan : item))
+    if (!persist(nextPlans)) {
       error.value = '기록을 저장하지 못했어요. 잠시 후 다시 확인해 주세요.'
       return null
     }
+    plans.value = nextPlans
     return plan
   }
 
   function removePlan(planId) {
     ensureLoaded()
     const id = String(planId ?? '')
-    plans.value = plans.value.filter((plan) => plan.id !== id)
-    persist()
+    if (!findPlan(id)) {
+      error.value = '지울 약속을 찾지 못했어요.'
+      return false
+    }
+
+    const nextPlans = plans.value.filter((plan) => plan.id !== id)
+    if (!persist(nextPlans)) {
+      error.value = '기록을 저장하지 못했어요. 잠시 후 다시 확인해 주세요.'
+      return false
+    }
+    plans.value = nextPlans
     error.value = null
+    return true
   }
 
   /** 실제 송금이 끝난 뒤에만 기록한다. 이 값으로 이번 달 중복을 가린다. */

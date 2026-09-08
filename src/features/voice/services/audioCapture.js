@@ -47,7 +47,7 @@ function buildFrame(sequence, pcm) {
  * 선형 보간 리샘플러. 브라우저가 AudioContext의 sampleRate 요청을 무시할 때만 쓰인다.
  * 버퍼 경계를 넘어가는 소수 위치와 남은 샘플을 유지한다.
  */
-function createResampler(inputRate, outputRate) {
+export function createResampler(inputRate, outputRate) {
   if (inputRate === outputRate) return (samples) => samples
 
   const ratio = inputRate / outputRate
@@ -67,7 +67,8 @@ function createResampler(inputRate, outputRate) {
       position += ratio
     }
 
-    const consumed = Math.floor(position)
+    // 블록보다 앞서간 위치를 버리지 않아 다음 블록의 시작 샘플을 건너뛰지 않는다.
+    const consumed = Math.min(Math.floor(position), input.length)
     tail = input.slice(consumed)
     position -= consumed
 
@@ -132,16 +133,17 @@ export async function startAudioCapture({ onFrame }) {
     throw createSttError('AUDIO_CAPTURE_FAILED', '마이크를 열지 못했어요.')
   }
 
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext
-  // 브라우저가 이 요청을 받아주면 리샘플링이 필요 없다. 무시하면 아래에서 직접 처리한다.
-  const audioContext = new AudioContextClass({ sampleRate: TARGET_SAMPLE_RATE })
-
+  let audioContext
   const release = async () => {
     stream.getTracks().forEach((track) => track.stop())
-    await audioContext.close().catch(() => {})
+    await audioContext?.close().catch(() => {})
   }
 
   try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    // 브라우저가 이 요청을 받아주면 리샘플링이 필요 없다. 무시하면 아래에서 직접 처리한다.
+    audioContext = new AudioContextClass({ sampleRate: TARGET_SAMPLE_RATE })
+
     // Vite와 Node 양쪽에서 동작하는 표준 형태. Vite는 이걸 자산으로 인식해 배출한다.
     const processorUrl = new URL('./pcmWorkletProcessor.js', import.meta.url).href
     await audioContext.audioWorklet.addModule(processorUrl)

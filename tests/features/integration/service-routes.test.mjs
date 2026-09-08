@@ -545,3 +545,37 @@ test('mobile branch presentation renders the three agreed MVP data shapes', () =
   assert.deepEqual(mobileBranchDocuments(branches[1]), ['신분증'])
   assert.deepEqual(mobileBranchDocuments(branches[2]), ['신분증', '상담 관련 서류'])
 })
+
+test('mobile branch presentation maps contract objects to display strings', () => {
+  const branch = {
+    schedule: {
+      services: [
+        { serviceName: '입출금·통장 업무', preparationNote: '신분증' },
+        { serviceName: '금융 상담', preparationNote: '' },
+      ],
+    },
+  }
+
+  assert.deepEqual(mobileBranchServices(branch), ['입출금·통장 업무', '금융 상담'])
+  assert.deepEqual(mobileBranchDocuments(branch), ['신분증'])
+})
+
+test('service screen exposes the mobile branch key helper to the template', () => {
+  assert.match(
+    routeViewPageSource,
+    /mobileBranchDistance,\s*mobileBranchDocuments,\s*mobileBranchId,\s*mobileBranchName/s,
+  )
+  assert.match(routeViewPageSource, /:key="mobileBranchId\(branch\)"/)
+})
+
+test('scheduled plan removal reports persistence failure before leaving the screen', () => {
+  const start = routeViewComposableSource.indexOf('// transfer-scheduled-edit의 두 번째 단추')
+  const end = routeViewComposableSource.indexOf(
+    "screenKey.value === 'transfer-existing-plan'",
+    start,
+  )
+  const removalBlock = routeViewComposableSource.slice(start, end)
+
+  assert.match(removalBlock, /const removed = transferPlanStore\.removePlan\(planTargetId\.value\)/)
+  assert.match(removalBlock, /if \(!removed\)[\s\S]*actionError\.value/)
+})

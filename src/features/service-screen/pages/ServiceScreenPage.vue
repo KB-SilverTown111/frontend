@@ -7,6 +7,7 @@ import {
   mobileBranchAddress,
   mobileBranchDistance,
   mobileBranchDocuments,
+  mobileBranchId,
   mobileBranchName,
   mobileBranchSchedule,
   mobileBranchServices,

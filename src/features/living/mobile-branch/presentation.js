@@ -3,8 +3,24 @@ function scheduleData(branch) {
   return branch?.schedule || branch?.schedules?.[0] || branch || {}
 }
 
+function mobileListLabel(value) {
+  if (!value || typeof value !== 'object') return String(value ?? '').trim()
+
+  const displayValue =
+    value.serviceName ??
+    value.documentName ??
+    value.itemName ??
+    value.name ??
+    value.label ??
+    value.title ??
+    value.preparationNote
+  return String(displayValue ?? '').trim()
+}
+
 function normalizeMobileList(value) {
-  if (Array.isArray(value)) return value.filter(Boolean).map(String)
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map(mobileListLabel).filter(Boolean)
+  }
   if (typeof value === 'string') {
     return value
       .split(',')
@@ -101,6 +117,10 @@ export function mobileBranchServices(branch) {
 
 export function mobileBranchDocuments(branch) {
   const schedule = scheduleData(branch)
+  const preparationNotes = Array.isArray(schedule.services)
+    ? schedule.services.map((service) => service?.preparationNote)
+    : []
+
   return firstMobileList(
     schedule.requiredDocuments,
     schedule.requiredItems,
@@ -108,5 +128,6 @@ export function mobileBranchDocuments(branch) {
     branch?.requiredDocuments,
     branch?.requiredItems,
     branch?.preparationItems,
+    preparationNotes,
   )
 }

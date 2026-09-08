@@ -31,6 +31,11 @@ function shouldClearAuthSession(error) {
   return status === 401 || status === 403
 }
 
+function authUserId(value) {
+  const userId = value?.userId
+  return userId == null ? null : String(userId)
+}
+
 export const useOnboardingStore = defineStore('onboarding', {
   state: () => ({
     draft: createOnboardingDraft(),
@@ -67,6 +72,7 @@ export const useOnboardingStore = defineStore('onboarding', {
 
       try {
         const authResult = await onboardingApi.signup(buildSignUpRequest(this.draft))
+        resetAuthenticatedStores(this._p)
         await this.persistAuthSession(authResult)
 
         this.status = 'success'
@@ -86,7 +92,9 @@ export const useOnboardingStore = defineStore('onboarding', {
       this.authStorageWarning = null
 
       try {
-        await this.persistAuthSession(await onboardingApi.login(buildLoginRequest(this.draft)))
+        const authResult = await onboardingApi.login(buildLoginRequest(this.draft))
+        resetAuthenticatedStores(this._p)
+        await this.persistAuthSession(authResult)
         this.status = 'success'
         return { ok: true }
       } catch (error) {
@@ -115,8 +123,13 @@ export const useOnboardingStore = defineStore('onboarding', {
     },
 
     async persistAuthSession(authResult) {
+      const previousUserId = authUserId(this.authResult)
       try {
-        this.authResult = await saveAuthSession(authResult)
+        const session = await saveAuthSession(authResult)
+        if (previousUserId && previousUserId !== authUserId(session)) {
+          resetAuthenticatedStores(this._p)
+        }
+        this.authResult = session
         this.authStorageWarning = null
       } catch {
         this.authResult = authResult
@@ -130,12 +143,14 @@ export const useOnboardingStore = defineStore('onboarding', {
         session = await loadAuthSession({ allowExpired: true })
       } catch {
         this.authResult = null
+        resetAuthenticatedStores(this._p)
         this.authStorageWarning = AUTH_STORAGE_WARNING
         return this.authResult
       }
 
       if (!session) {
         this.authResult = null
+        resetAuthenticatedStores(this._p)
         return this.authResult
       }
 
@@ -151,6 +166,7 @@ export const useOnboardingStore = defineStore('onboarding', {
         }
       } catch (error) {
         this.authResult = null
+        resetAuthenticatedStores(this._p)
         if (shouldClearAuthSession(error)) {
           await clearAuthSession().catch(() => {})
         }

@@ -175,6 +175,14 @@ test('going back clears a stale submit error before changing onboarding steps', 
   assert.match(source.slice(start, end), /store\.submitError = null/)
 })
 
+test('onboarding exposes the go navigation helper to its template', async () => {
+  const source = await readOnboardingView()
+  const flowReturn = source.slice(source.lastIndexOf('return {'))
+
+  assert.match(flowReturn, /\n {4}go,\n/)
+  assert.match(source, /go,\s*goBack,\s*handleEmergencyPhoneInput/s)
+})
+
 test('account number input is visible while retaining a numeric keyboard hint', async () => {
   const source = await readOnboardingView()
   const start = source.indexOf('aria-label="계좌번호"')

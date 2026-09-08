@@ -45,6 +45,7 @@ export function isClientSttAvailable() {
 
 /** 진행 중인 웹 인식. abortSpeechCapture가 중단할 수 있도록 모듈 범위에 둔다. */
 let activeWebRecognition = null
+let activeWebCapturePromise = null
 
 function captureOnWeb() {
   const Recognition = webRecognition()
@@ -54,53 +55,71 @@ function captureOnWeb() {
     )
   }
 
-  return new Promise((resolve, reject) => {
-    const recognition = new Recognition()
-    let settled = false
-
-    const finish = (settle, value) => {
-      if (settled) return
-      settled = true
-      activeWebRecognition = null
-      settle(value)
-    }
-
-    recognition.lang = 'ko-KR'
-    recognition.maxAlternatives = 1
-    recognition.interimResults = false
-
-    recognition.onresult = (event) => {
-      const alternative = event.results?.[0]?.[0]
-      const confidence = Number(alternative?.confidence)
-      finish(resolve, {
-        transcript: String(alternative?.transcript ?? '').trim(),
-        confidence:
-          Number.isFinite(confidence) && confidence > 0 ? confidence : UNKNOWN_STT_CONFIDENCE,
-      })
-    }
-
-    recognition.onerror = (event) => {
-      const reason = event?.error
-      if (reason === 'not-allowed' || reason === 'service-not-allowed') {
-        finish(reject, createSttError('STT_PERMISSION_DENIED', '마이크 권한이 필요해요.'))
-        return
-      }
-      if (reason === 'no-speech') {
-        finish(reject, createSttError('STT_NO_SPEECH', '말씀을 듣지 못했어요. 다시 말씀해 주세요.'))
-        return
-      }
-      finish(reject, createSttError('STT_FAILED', '음성 인식을 시작하지 못했어요.'))
-    }
-
-    // result도 error도 없이 end만 오는 경우가 있다. 이때 정착시키지 않으면
-    // listenAndSendTurn의 finally가 실행되지 않아 듣는 중 상태로 굳는다.
-    recognition.onend = () => {
-      finish(reject, createSttError('STT_NO_SPEECH', '말씀을 듣지 못했어요. 다시 말씀해 주세요.'))
-    }
-
-    activeWebRecognition = recognition
-    recognition.start()
+  const recognition = new Recognition()
+  let resolveCapture
+  let rejectCapture
+  const capturePromise = new Promise((resolve, reject) => {
+    resolveCapture = resolve
+    rejectCapture = reject
   })
+  let settled = false
+
+  const finish = (settle, value) => {
+    if (settled) return
+    settled = true
+    if (activeWebRecognition === recognition) activeWebRecognition = null
+    if (activeWebCapturePromise === capturePromise) activeWebCapturePromise = null
+    settle(value)
+  }
+
+  recognition.lang = 'ko-KR'
+  recognition.maxAlternatives = 1
+  recognition.interimResults = false
+
+  recognition.onresult = (event) => {
+    const alternative = event.results?.[0]?.[0]
+    const confidence = Number(alternative?.confidence)
+    finish(resolveCapture, {
+      transcript: String(alternative?.transcript ?? '').trim(),
+      confidence:
+        Number.isFinite(confidence) && confidence > 0 ? confidence : UNKNOWN_STT_CONFIDENCE,
+    })
+  }
+
+  recognition.onerror = (event) => {
+    const reason = event?.error
+    if (reason === 'not-allowed' || reason === 'service-not-allowed') {
+      finish(rejectCapture, createSttError('STT_PERMISSION_DENIED', '마이크 권한이 필요해요.'))
+      return
+    }
+    if (reason === 'no-speech') {
+      finish(
+        rejectCapture,
+        createSttError('STT_NO_SPEECH', '말씀을 듣지 못했어요. 다시 말씀해 주세요.'),
+      )
+      return
+    }
+    finish(rejectCapture, createSttError('STT_FAILED', '음성 인식을 시작하지 못했어요.'))
+  }
+
+  // result도 error도 없이 end만 오는 경우가 있다. 이때 정착시키지 않으면
+  // listenAndSendTurn의 finally가 실행되지 않아 듣는 중 상태로 굳는다.
+  recognition.onend = () => {
+    finish(
+      rejectCapture,
+      createSttError('STT_NO_SPEECH', '말씀을 듣지 못했어요. 다시 말씀해 주세요.'),
+    )
+  }
+
+  activeWebRecognition = recognition
+  activeWebCapturePromise = capturePromise
+  try {
+    recognition.start()
+  } catch {
+    finish(rejectCapture, createSttError('STT_FAILED', '음성 인식을 시작하지 못했어요.'))
+  }
+
+  return capturePromise
 }
 
 async function captureOnDevice() {
@@ -173,6 +192,11 @@ export async function abortSpeechCapture() {
     await SpeechRecognition.stop().catch(() => {})
     return
   }
-  // abort()가 onend를 발생시켜 대기 중인 Promise를 정착시킨다.
-  activeWebRecognition?.abort()
+  const recognition = activeWebRecognition
+  const capturePromise = activeWebCapturePromise
+  if (!recognition || !capturePromise) return
+
+  // abort()가 onend를 발생시킨 뒤에야 대기 중인 Promise와 store finally가 정착된다.
+  recognition.abort()
+  await capturePromise.catch(() => {})
 }

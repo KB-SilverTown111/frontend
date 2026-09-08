@@ -12,6 +12,7 @@ const {
   detailAddressInput,
   fontScale,
   FONT_SCALE,
+  go,
   goBack,
   handleEmergencyPhoneInput,
   handlePhoneInput,

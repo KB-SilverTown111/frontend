@@ -357,6 +357,7 @@ export function useOnboardingFlow() {
     detailAddressInput,
     fontScale,
     FONT_SCALE,
+    go,
     goBack,
     handleEmergencyPhoneInput,
     handlePhoneInput,

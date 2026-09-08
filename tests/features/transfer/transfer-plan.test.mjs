@@ -146,6 +146,31 @@ test('저장에 실패하면 보낸 기록을 남겼다고 하지 않는다', ()
   }
 })
 
+test('약속 변경은 저장 성공 뒤에만 메모리 목록에 반영된다', () => {
+  const storage = setup()
+
+  try {
+    const store = useTransferPlanStore()
+    const created = store.addPlan(plan)
+    const original = store.plans.map((item) => ({ ...item }))
+
+    storage.restore()
+    useFakeStorage({ failOnWrite: true })
+
+    assert.equal(store.addPlan({ label: '새 약속', amount: 1000, dayOfMonth: 1 }), null)
+    assert.deepEqual(store.plans, original)
+
+    assert.equal(store.updatePlan(created.id, { amount: 500000 }), null)
+    assert.deepEqual(store.plans, original)
+
+    assert.equal(store.removePlan(created.id), false)
+    assert.deepEqual(store.plans, original)
+    assert.equal(store.error, '기록을 저장하지 못했어요. 잠시 후 다시 확인해 주세요.')
+  } finally {
+    delete globalThis.localStorage
+  }
+})
+
 test('보낸 기록이 남으면 이번 달 중복으로 잡힌다', () => {
   const storage = setup()
 

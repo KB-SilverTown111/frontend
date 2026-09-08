@@ -124,14 +124,15 @@ function contactsPermissionError() {
   return error
 }
 
-export async function getContactCandidates() {
-  const permissions = await Contacts.checkPermissions()
-  if (permissions.contacts !== 'granted') {
-    const requested = await Contacts.requestPermissions()
-    if (requested.contacts !== 'granted') throw contactsPermissionError()
+export async function getContactCandidates(dependencies = {}) {
+  const contactsApi = dependencies.contacts ?? Contacts
+  const permissions = await contactsApi.checkPermissions()
+  if (!isPermissionGranted(permissions.contacts)) {
+    const requested = await contactsApi.requestPermissions()
+    if (!isPermissionGranted(requested.contacts)) throw contactsPermissionError()
   }
 
-  const { contacts } = await Contacts.getContacts({
+  const { contacts = [] } = await contactsApi.getContacts({
     projection: { name: true, phones: true },
   })
 

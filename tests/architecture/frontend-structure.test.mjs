@@ -82,6 +82,7 @@ test('구식 루트 파일과 숫자 기반 서비스 라우팅이 남아 있지
     'src/views/TransferHomeView.vue',
     'src/services/productionServiceScreens.js',
     'src/api/client.js',
+    'src/shared/stores/counter.js',
   ]
 
   for (const relativePath of stalePaths) {
@@ -116,9 +117,12 @@ test('shared는 app과 feature를 역참조하지 않고 feature는 app 구현�
 
 test('테스트는 기능별 루트에서 재귀적으로 발견되고 공통 소스 helper를 사용한다', () => {
   const runnerSource = readFileSync(join(projectRoot, 'scripts/run-tests.mjs'), 'utf8')
+  const guideSource = readFileSync(join(projectRoot, 'docs/frontend-architecture.md'), 'utf8')
   assert.match(runnerSource, /testsDirectory/)
   assert.match(runnerSource, /collectTestFiles\(/)
   assert.match(runnerSource, /entry\.isDirectory\(\)/)
+  assert.match(guideSource, /tests\/\*\*\/\*\.test\.mjs/)
+  assert.doesNotMatch(guideSource, /tests\/\*\*\/_\*\.test\.mjs/)
 
   for (const directory of ['app', 'architecture', 'features', 'helpers', 'shared']) {
     assert.equal(existsSync(join(testsRoot, directory)), true, `tests/${directory}`)

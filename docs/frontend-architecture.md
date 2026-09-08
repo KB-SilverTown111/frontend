@@ -70,7 +70,7 @@ tests/
     └── integration/ # 여러 기능을 잇는 API·라우트·스토어 계약
 ```
 
-테스트 실행은 scripts/run-tests.mjs가 tests/**/_.test.mjs를 재귀적으로 찾는다.
+테스트 실행은 scripts/run-tests.mjs가 tests/**/*.test.mjs를 재귀적으로 찾는다.
 기존 npm run test:_ prefix 명령도 유지한다.
 
 ## Mermaid

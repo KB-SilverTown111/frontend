@@ -15,6 +15,8 @@ import { onboardingApi } from '../../../src/features/onboarding/api/onboarding.j
 import { useBillStore } from '../../../src/features/bills/stores/bill.js'
 import { useOnboardingStore } from '../../../src/features/onboarding/stores/onboarding.js'
 import { useServiceDataStore } from '../../../src/features/living/stores/serviceData.js'
+import { TRANSFER_PLAN_KEY } from '../../../src/features/transfer/services/transferPlanStorage.js'
+import { useTransferPlanStore } from '../../../src/features/transfer/stores/transferPlan.js'
 import { useTransferStore } from '../../../src/features/transfer/stores/transfer.js'
 import { useVoiceStore } from '../../../src/features/voice/stores/voice.js'
 
@@ -90,6 +92,50 @@ test('store logs in with the ID and password fields', async () => {
   assert.equal(result.ok, true)
   assert.equal(store.authResult.userId, 'mock-user-001')
   assert.equal(store.status, 'success')
+})
+
+test('logging in as another user clears the previous user transfer plans', async () => {
+  const values = new Map()
+  const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value)),
+      removeItem: (key) => values.delete(key),
+    },
+  })
+
+  try {
+    await clearAuthSession()
+    setActivePinia(createPinia())
+    const store = useOnboardingStore()
+    const transferPlans = useTransferPlanStore()
+    values.set(
+      TRANSFER_PLAN_KEY,
+      JSON.stringify([{ label: '이전 계정 약속', amount: 1000, dayOfMonth: 1 }]),
+    )
+    transferPlans.load()
+    store.authResult = {
+      accessToken: 'old-access-token',
+      refreshToken: 'old-refresh-token',
+      expiresAt: '2099-12-31T23:59:59Z',
+      userId: 'old-user',
+    }
+    store.draft.loginId = 'silveruser'
+    store.draft.password = 'safe-pass-123'
+
+    const result = await store.login()
+
+    assert.equal(result.ok, true)
+    assert.equal(values.has(TRANSFER_PLAN_KEY), false)
+    assert.deepEqual(transferPlans.plans, [])
+  } finally {
+    await clearAuthSession()
+    if (previousLocalStorage)
+      Object.defineProperty(globalThis, 'localStorage', previousLocalStorage)
+    else delete globalThis.localStorage
+  }
 })
 
 test('store logs out by clearing the authenticated session and transient state', async () => {

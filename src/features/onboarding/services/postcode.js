@@ -10,14 +10,16 @@ export function loadPostcodeApi() {
     const script = document.createElement('script')
     script.src = POSTCODE_SCRIPT_URL
     script.async = true
+    const fail = (message) => {
+      postcodeApiPromise = undefined
+      script.remove()
+      reject(new Error(message))
+    }
     script.onload = () => {
       if (window.kakao?.Postcode) resolve(window.kakao.Postcode)
-      else reject(new Error('Kakao Postcode API is unavailable.'))
+      else fail('Kakao Postcode API is unavailable.')
     }
-    script.onerror = () => {
-      postcodeApiPromise = undefined
-      reject(new Error('Failed to load Kakao Postcode API.'))
-    }
+    script.onerror = () => fail('Failed to load Kakao Postcode API.')
     document.head.append(script)
   })
 

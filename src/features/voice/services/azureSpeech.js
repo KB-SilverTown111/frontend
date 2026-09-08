@@ -10,6 +10,7 @@
 /** 재생 중인 합성. barge-in으로 끊을 수 있도록 모듈 범위에 둔다. */
 let activePlayback = null
 let sdkPromise = null
+let speechGeneration = 0
 
 function loadSdk() {
   if (!sdkPromise) {
@@ -46,6 +47,7 @@ function closePlayback({ player, synthesizer }) {
 
 /** 재생 중인 안내를 즉시 끊는다. 마이크 입력 직전과 화면 이탈 시 호출한다. */
 export function stopAzureSpeech() {
+  speechGeneration += 1
   const playback = activePlayback
   if (!playback) return
 
@@ -55,7 +57,9 @@ export function stopAzureSpeech() {
 }
 
 export async function speakSsmlWithAzure(ssml, credential) {
+  const generation = ++speechGeneration
   const speechSdk = await loadSdk()
+  if (generation !== speechGeneration) return { spoken: false, reason: 'STOPPED' }
   stopAzureSpeech()
 
   const config = speechSdk.SpeechConfig.fromAuthorizationToken(credential.token, credential.region)
