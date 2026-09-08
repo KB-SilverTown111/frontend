@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import * as onboardingContract from '../../../src/features/onboarding/contract.js'
+import * as onboardingContract from '../../../src/features/onboarding/model/contract.js'
 
 test('Kakao postcode selection keeps the postal code and the address type the user chose', () => {
   const resolve = onboardingContract.resolvePostcodeSelection

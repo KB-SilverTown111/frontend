@@ -2,9 +2,12 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import test from 'node:test'
 
-import { ONBOARDING_SCREEN_IDS, setConsentDecision } from '../../../src/features/onboarding/screens.js'
-import * as onboardingScreens from '../../../src/features/onboarding/screens.js'
-import { BANKS } from '../../../src/features/onboarding/banks.js'
+import {
+  ONBOARDING_SCREEN_IDS,
+  setConsentDecision,
+} from '../../../src/features/onboarding/model/screens.js'
+import * as onboardingScreens from '../../../src/features/onboarding/model/screens.js'
+import { BANKS } from '../../../src/features/onboarding/model/banks.js'
 
 test('supported onboarding frames are represented as route-safe screens', () => {
   assert.deepEqual(ONBOARDING_SCREEN_IDS, [

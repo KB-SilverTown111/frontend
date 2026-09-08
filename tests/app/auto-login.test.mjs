@@ -3,9 +3,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-const initialRouteUrl = new URL('../../src/router/initialRoute.js', import.meta.url)
+const initialRouteUrl = new URL('../../src/app/router/initialRoute.js', import.meta.url)
 const initialRoutePath = fileURLToPath(initialRouteUrl)
-const mainSource = readFileSync(new URL('../../src/main.js', import.meta.url), 'utf8')
+const mainSource = readFileSync(new URL('../../src/app/main.js', import.meta.url), 'utf8')
 
 async function loadRestoredSessionRoute() {
   assert.equal(existsSync(initialRoutePath), true, 'initial route policy should exist')

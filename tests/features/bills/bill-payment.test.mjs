@@ -2,29 +2,34 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-const routeSource = readFileSync(
-  new URL('../../../src/views/ServiceRouteView.vue', import.meta.url),
+const routePageSource = readFileSync(
+  new URL('../../../src/features/service-screen/pages/ServiceScreenPage.vue', import.meta.url),
   'utf8',
 )
+const routeComposableSource = readFileSync(
+  new URL('../../../src/features/service-screen/composables/useServiceScreen.js', import.meta.url),
+  'utf8',
+)
+const routeSource = `${routeComposableSource}\n${routePageSource}`
 const homeSource = readFileSync(
-  new URL('../../../src/views/ServiceHomeView.vue', import.meta.url),
+  new URL('../../../src/app/pages/ServiceHomePage.vue', import.meta.url),
   'utf8',
 )
 const billScreenSource = readFileSync(
-  new URL('../../../src/services/screenData/bills.js', import.meta.url),
+  new URL('../../../src/features/bills/screens/reference.js', import.meta.url),
   'utf8',
 )
 const successScreenSource = billScreenSource.slice(
-  billScreenSource.indexOf("id: '3-07'"),
-  billScreenSource.indexOf("id: '3-08'"),
+  billScreenSource.indexOf("key: 'bill-complete'"),
+  billScreenSource.indexOf("key: 'bill-recognition-failed'"),
 )
 const primaryHandlerSource = routeSource.slice(
   routeSource.indexOf('async function handlePrimary'),
   routeSource.indexOf('async function handleSecondary'),
 )
 const billExecutionSource = routeSource.slice(
-  routeSource.indexOf('/** 3-21에 들어오면'),
-  routeSource.indexOf('/** 3-16에 들어오면'),
+  routeSource.indexOf('/** bill-paying에 들어오면'),
+  routeSource.indexOf('/** bill-read-aloud에 들어오면'),
 )
 
 test('bill confirmation sends all required confirmation values from the 3-05 flow', () => {
@@ -42,7 +47,7 @@ test('bill confirmation sends all required confirmation values from the 3-05 flo
   )
   assert.match(
     primaryHandlerSource,
-    /\['3-04', '3-05'\]\.includes\(screenId\.value\)[\s\S]*confirmBill\(\)/,
+    /\['bill-review', 'bill-low-confidence'\]\.includes\(screenKey\.value\)[\s\S]*confirmBill\(\)/,
   )
 })
 
@@ -50,13 +55,13 @@ test('bill confirmation keeps a mismatch on the reconfirmation screen', () => {
   assert.match(routeSource, /status === ['"]RECONFIRM['"]/)
   assert.match(routeSource, /status !== ['"]CONFIRMED['"]/)
   assert.match(routeSource, /executable !== true/)
-  assert.match(routeSource, /screenId: ['"]3-05['"]|3-05/)
+  assert.match(routeSource, /screenKey: ['"]bill-low-confidence['"]|bill-low-confidence/)
 })
 
 test('bill execution routes by the actual SUCCESS response', () => {
   assert.match(routeSource, /status === ['"]SUCCESS['"]|isBillPaymentSuccessful/)
-  assert.match(routeSource, /screenId: ['"]3-07['"]|3-07/)
-  assert.match(routeSource, /screenId: ['"]3-22['"]|3-22/)
+  assert.match(routeSource, /screenKey: ['"]bill-complete['"]|bill-complete/)
+  assert.match(routeSource, /screenKey: ['"]bill-payment-failed['"]|bill-payment-failed/)
 })
 
 test('bill execution validates confirmation state after loading context', () => {
@@ -69,7 +74,7 @@ test('bill execution validates confirmation state after loading context', () => 
   assert.match(validationSource, /billStore\.bill\?\.status !== ['"]CONFIRMED['"]/)
   assert.match(validationSource, /billStore\.bill\?\.executable !== true/)
   assert.match(validationSource, /billStore\.confirmationToken/)
-  assert.match(validationSource, /screenId: ['"]3-05['"]|3-05/)
+  assert.match(validationSource, /screenKey: ['"]bill-low-confidence['"]|bill-low-confidence/)
 })
 test('bill success screen renders actual payment result fields', () => {
   assert.match(routeSource, /billStore\.result\?\.paymentId/)

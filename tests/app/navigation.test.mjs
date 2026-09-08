@@ -1,17 +1,27 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { goBackOrReplace } from '../../src/router/navigation.js'
+import { goBackOrReplace } from '../../src/shared/lib/navigation.js'
+import { createSourceReader } from '../helpers/source.js'
 
-const readSource = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
-const onboardingSource = readSource('../../src/views/OnboardingView.vue')
-const helpSource = readSource('../../src/views/OnboardingHelpView.vue')
-const fontSizeSource = readSource('../../src/views/MyPageFontSizeView.vue')
-const serviceRouteSource = readSource('../../src/views/ServiceRouteView.vue')
-const transferHomeSource = readSource('../../src/views/TransferHomeView.vue')
-const serviceHomeSource = readSource('../../src/views/ServiceHomeView.vue')
-const myPageSource = readSource('../../src/views/MyPageView.vue')
+const readSource = createSourceReader(import.meta.url)
+const onboardingPageSource = readSource('../../src/features/onboarding/pages/OnboardingPage.vue')
+const onboardingFlowSource = readSource(
+  '../../src/features/onboarding/composables/useOnboardingFlow.js',
+)
+const onboardingSource = `${onboardingFlowSource}\n${onboardingPageSource}`
+const helpSource = readSource('../../src/features/onboarding/pages/OnboardingHelpPage.vue')
+const fontSizeSource = readSource('../../src/features/my-page/pages/FontSizePage.vue')
+const serviceRoutePageSource = readSource(
+  '../../src/features/service-screen/pages/ServiceScreenPage.vue',
+)
+const serviceRouteComposableSource = readSource(
+  '../../src/features/service-screen/composables/useServiceScreen.js',
+)
+const serviceRouteSource = `${serviceRouteComposableSource}\n${serviceRoutePageSource}`
+const transferHomeSource = readSource('../../src/features/transfer/pages/TransferHomePage.vue')
+const serviceHomeSource = readSource('../../src/app/pages/ServiceHomePage.vue')
+const myPageSource = readSource('../../src/features/my-page/pages/MyPagePage.vue')
 
 function createRouterMock(state) {
   const calls = []

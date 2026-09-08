@@ -3,23 +3,28 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-const loadingModuleUrl = new URL('../../src/services/appLoading.js', import.meta.url)
+const loadingModuleUrl = new URL('../../src/shared/services/appLoading.js', import.meta.url)
 const loadingModulePath = fileURLToPath(loadingModuleUrl)
 const overlayPath = fileURLToPath(
-  new URL('../../src/components/AppLoadingOverlay.vue', import.meta.url),
+  new URL('../../src/shared/components/feedback/AppLoadingOverlay.vue', import.meta.url),
 )
-const appSource = readFileSync(new URL('../../src/App.vue', import.meta.url), 'utf8')
-const routerSource = readFileSync(new URL('../../src/router/index.js', import.meta.url), 'utf8')
-const routeViewSource = readFileSync(
-  new URL('../../src/views/ServiceRouteView.vue', import.meta.url),
+const appSource = readFileSync(new URL('../../src/app/App.vue', import.meta.url), 'utf8')
+const routerSource = readFileSync(new URL('../../src/app/router/index.js', import.meta.url), 'utf8')
+const routeViewPageSource = readFileSync(
+  new URL('../../src/features/service-screen/pages/ServiceScreenPage.vue', import.meta.url),
   'utf8',
 )
+const routeViewComposableSource = readFileSync(
+  new URL('../../src/features/service-screen/composables/useServiceScreen.js', import.meta.url),
+  'utf8',
+)
+const routeViewSource = `${routeViewComposableSource}\n${routeViewPageSource}`
 const serviceHomeSource = readFileSync(
-  new URL('../../src/views/ServiceHomeView.vue', import.meta.url),
+  new URL('../../src/app/pages/ServiceHomePage.vue', import.meta.url),
   'utf8',
 )
 const transferHomeSource = readFileSync(
-  new URL('../../src/views/TransferHomeView.vue', import.meta.url),
+  new URL('../../src/features/transfer/pages/TransferHomePage.vue', import.meta.url),
   'utf8',
 )
 

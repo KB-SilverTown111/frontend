@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { clearAuthSession, saveAuthSession } from '../../../src/api/authStorage.js'
-import { apiClient, resolveApiBaseUrl } from '../../../src/api/client.js'
+import { clearAuthSession, saveAuthSession } from '../../../src/shared/services/authStorage.js'
+import { apiClient, resolveApiBaseUrl } from '../../../src/shared/api/client.js'
 
 test('API base URL includes the backend API prefix exactly once', () => {
   assert.equal(

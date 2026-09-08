@@ -7,7 +7,7 @@ import {
   normalizeFontScale,
   readFontScale,
   saveFontScale,
-} from '../../src/services/fontScale.js'
+} from '../../src/shared/services/fontScale.js'
 
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial))

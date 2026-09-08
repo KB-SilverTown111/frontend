@@ -1,12 +1,17 @@
 export function createScreenRegistry({ service, definitions, routeName = `${service}-screen` }) {
   const screenDefinitions = Object.fromEntries(
-    definitions.map(({ name, ...definition }) => [
-      name,
-      Object.freeze({
-        ...definition,
-        key: definition.key ?? `${service}-${name}`,
-      }),
-    ]),
+    definitions.map(({ name, ...definition }) => {
+      const key = definition.key ?? `${service}-${name}`
+
+      return [
+        name,
+        Object.freeze({
+          ...definition,
+          key,
+          screenKey: definition.screenKey ?? key,
+        }),
+      ]
+    }),
   )
 
   const screens = Object.values(screenDefinitions)
@@ -27,7 +32,7 @@ export function createScreenRegistry({ service, definitions, routeName = `${serv
 
     return {
       name: screen.routeName ?? routeName,
-      params: { screenKey: screen.key },
+      params: { screenKey: screen.screenKey },
     }
   }
 

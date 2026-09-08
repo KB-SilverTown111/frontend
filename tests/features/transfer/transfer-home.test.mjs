@@ -2,17 +2,28 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { routes } from '../../../src/router/routes.js'
+import { routes } from '../../../src/app/router/routes.js'
 
-const viewPath = new URL('../../../src/views/TransferHomeView.vue', import.meta.url)
+const viewPath = new URL(
+  '../../../src/features/transfer/pages/TransferHomePage.vue',
+  import.meta.url,
+)
 const viewSource = existsSync(viewPath) ? readFileSync(viewPath, 'utf8') : ''
-const serviceHomePath = new URL('../../../src/views/ServiceHomeView.vue', import.meta.url)
+const serviceHomePath = new URL('../../../src/app/pages/ServiceHomePage.vue', import.meta.url)
 const serviceHomeSource = existsSync(serviceHomePath) ? readFileSync(serviceHomePath, 'utf8') : ''
-const styleSource = readFileSync(new URL('../../../src/styles/transfer.css', import.meta.url), 'utf8')
-const onboardingSource = readFileSync(
-  new URL('../../../src/views/OnboardingView.vue', import.meta.url),
+const styleSource = readFileSync(
+  new URL('../../../src/features/transfer/styles/transfer.css', import.meta.url),
   'utf8',
 )
+const onboardingPageSource = readFileSync(
+  new URL('../../../src/features/onboarding/pages/OnboardingPage.vue', import.meta.url),
+  'utf8',
+)
+const onboardingFlowSource = readFileSync(
+  new URL('../../../src/features/onboarding/composables/useOnboardingFlow.js', import.meta.url),
+  'utf8',
+)
+const onboardingSource = `${onboardingFlowSource}\n${onboardingPageSource}`
 
 test('authenticated users have a production transfer home route', () => {
   const transferHome = routes.find(({ name }) => name === 'transfer-home')

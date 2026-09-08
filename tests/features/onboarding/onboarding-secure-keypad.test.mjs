@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import * as secureKeypad from '../../../src/features/onboarding/screens.js'
+import * as secureKeypad from '../../../src/features/onboarding/model/screens.js'
 
 test('secure keypad contains every digit exactly once', () => {
   const order = secureKeypad.createRandomDigitOrder(() => 0)

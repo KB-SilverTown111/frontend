@@ -1,23 +1,31 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { routes } from '../../../src/router/routes.js'
+import { routes } from '../../../src/app/router/routes.js'
+import { createSourceReader } from '../../helpers/source.js'
 
-const readSource = (path) => {
-  return readFileSync(new URL(path, import.meta.url), 'utf8')
-}
+const readSource = createSourceReader(import.meta.url)
 
-const myPageSource = readSource('../../../src/views/MyPageView.vue')
-const fontSizeSource = readSource('../../../src/views/MyPageFontSizeView.vue')
-const transferHomeSource = readSource('../../../src/views/TransferHomeView.vue')
-const serviceHomeSource = readSource('../../../src/views/ServiceHomeView.vue')
-const routeViewSource = readSource('../../../src/views/ServiceRouteView.vue')
-const shellSource = readSource('../../../src/components/onboarding/OnboardingShell.vue')
-const onboardingSource = readSource('../../../src/views/OnboardingView.vue')
-const styleSource = readSource('../../../src/styles/onboarding.css')
-const globalStyleSource = readSource('../../../src/styles/globals.css')
-const transferStyleSource = readSource('../../../src/styles/transfer.css')
+const myPageSource = readSource('../../../src/features/my-page/pages/MyPagePage.vue')
+const fontSizeSource = readSource('../../../src/features/my-page/pages/FontSizePage.vue')
+const transferHomeSource = readSource('../../../src/features/transfer/pages/TransferHomePage.vue')
+const serviceHomeSource = readSource('../../../src/app/pages/ServiceHomePage.vue')
+const routeViewPageSource = readSource(
+  '../../../src/features/service-screen/pages/ServiceScreenPage.vue',
+)
+const routeViewComposableSource = readSource(
+  '../../../src/features/service-screen/composables/useServiceScreen.js',
+)
+const routeViewSource = `${routeViewComposableSource}\n${routeViewPageSource}`
+const shellSource = readSource('../../../src/features/onboarding/components/OnboardingShell.vue')
+const onboardingPageSource = readSource('../../../src/features/onboarding/pages/OnboardingPage.vue')
+const onboardingFlowSource = readSource(
+  '../../../src/features/onboarding/composables/useOnboardingFlow.js',
+)
+const onboardingSource = `${onboardingFlowSource}\n${onboardingPageSource}`
+const styleSource = readSource('../../../src/features/onboarding/styles/onboarding.css')
+const globalStyleSource = readSource('../../../src/shared/styles/globals.css')
+const transferStyleSource = readSource('../../../src/features/transfer/styles/transfer.css')
 
 test('my page has a production route and view', () => {
   const myPageRoute = routes.find(({ name }) => name === 'my-page')
@@ -28,7 +36,7 @@ test('my page has a production route and view', () => {
   assert.equal(typeof myPageRoute?.component, 'function')
   assert.equal(fontSizeRoute?.path, '/mypage/font-size')
   assert.equal(typeof fontSizeRoute?.component, 'function')
-  assert.equal(voiceSettingsRoute?.path, '/mypage/voice/:screenId')
+  assert.equal(voiceSettingsRoute?.path, '/mypage/voice/:screenKey')
   assert.equal(voiceSettingsRoute?.meta?.myPageVoice, true)
   assert.equal(typeof voiceSettingsRoute?.beforeEnter, 'function')
   assert.match(myPageSource, /마이페이지/)
@@ -36,7 +44,7 @@ test('my page has a production route and view', () => {
 
 test('my page exposes cards and moves font size controls to a detail screen', () => {
   assert.match(myPageSource, /가입 정보/)
-  assert.match(myPageSource, /screenId: '4-14'/)
+  assert.match(myPageSource, /screenKey: 'living-profile-edit'/)
   assert.match(myPageSource, /my-page-font-size/)
   assert.match(myPageSource, /글씨 크기/)
 
@@ -59,7 +67,7 @@ test('large font option previews the large body text size', () => {
 test('my page exposes the voice change card as the only settings entry point', () => {
   assert.match(myPageSource, /목소리 변경/)
   assert.match(myPageSource, /name: 'my-page-voice'/)
-  assert.match(myPageSource, /screenId: '5-01'/)
+  assert.match(myPageSource, /screenKey: 'voice-voice-select'/)
 })
 
 test('font size detail screen returns to the correct entry flow', () => {
@@ -81,12 +89,15 @@ test('production choices do not show onboarding selection indicators', () => {
 
 test('living home moves the membership card to my page', () => {
   assert.doesNotMatch(serviceHomeSource, /label: '가입 정보'/)
-  assert.match(myPageSource, /screenId: '4-14'/)
+  assert.match(myPageSource, /screenKey: 'living-profile-edit'/)
 })
 
 test('membership detail back control returns to my page', () => {
   assert.match(routeViewSource, /const backRoute = computed\(/)
-  assert.match(routeViewSource, /\['4-14', '4-15', '4-16'\]/)
+  assert.match(
+    routeViewSource,
+    /\['living-profile-edit', 'living-emergency-contact-edit', 'living-consents'\]/,
+  )
   assert.match(routeViewSource, /:to="backRoute"/)
 })
 

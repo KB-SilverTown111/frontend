@@ -2,45 +2,50 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { routes } from '../../../src/router/routes.js'
+import { routes } from '../../../src/app/router/routes.js'
 import {
   getProductionActionRoutes,
   loadProductionScreen,
   productionServiceScreens,
   resolveProductionScreen,
-} from '../../../src/services/productionServiceScreens.js'
+} from '../../../src/features/service-screen/services/productionServiceScreens.js'
 import {
   mobileBranchSchedule,
   mobileBranchDocuments,
   mobileBranchServices,
-} from '../../../src/services/mobileBranchPresentation.js'
+} from '../../../src/features/living/mobile-branch/presentation.js'
 
 const serviceHomeSource = readFileSync(
-  new URL('../../../src/views/ServiceHomeView.vue', import.meta.url),
+  new URL('../../../src/app/pages/ServiceHomePage.vue', import.meta.url),
   'utf8',
 )
 const transferHomeSource = readFileSync(
-  new URL('../../../src/views/TransferHomeView.vue', import.meta.url),
+  new URL('../../../src/features/transfer/pages/TransferHomePage.vue', import.meta.url),
   'utf8',
 )
-const routeViewSource = readFileSync(
-  new URL('../../../src/views/ServiceRouteView.vue', import.meta.url),
+const routeViewPageSource = readFileSync(
+  new URL('../../../src/features/service-screen/pages/ServiceScreenPage.vue', import.meta.url),
   'utf8',
 )
+const routeViewComposableSource = readFileSync(
+  new URL('../../../src/features/service-screen/composables/useServiceScreen.js', import.meta.url),
+  'utf8',
+)
+const routeViewSource = `${routeViewComposableSource}\n${routeViewPageSource}`
 const transferFlowPanelSource = readFileSync(
-  new URL('../../../src/components/patterns/TransferFlowPanel.vue', import.meta.url),
+  new URL('../../../src/features/transfer/components/TransferFlowPanel.vue', import.meta.url),
   'utf8',
 )
 const mobileBranchPresentationSource = readFileSync(
-  new URL('../../../src/services/mobileBranchPresentation.js', import.meta.url),
+  new URL('../../../src/features/living/mobile-branch/presentation.js', import.meta.url),
   'utf8',
 )
 const serviceStyleSource = readFileSync(
-  new URL('../../../src/styles/transfer.css', import.meta.url),
+  new URL('../../../src/features/transfer/styles/transfer.css', import.meta.url),
   'utf8',
 )
 const screenContentStyleSource = readFileSync(
-  new URL('../../../src/styles/screen-content.css', import.meta.url),
+  new URL('../../../src/shared/styles/screen-content.css', import.meta.url),
   'utf8',
 )
 
@@ -56,23 +61,26 @@ test('production routes cover every non-home service screen', () => {
     assert.equal(productionServiceScreens[service].length, expectedCount)
 
     const route = routes.find(({ name }) => name === `${service}-screen`)
-    assert.equal(route?.path, `/${service}/:screenId`)
+    assert.equal(route?.path, `/${service}/:screenKey`)
     assert.equal(typeof route?.component, 'function')
     assert.equal(typeof route?.beforeEnter, 'function')
   }
 })
 
 test('production screen resolver accepts known IDs and rejects unknown IDs', () => {
-  assert.equal(resolveProductionScreen('transfer', '2-05')?.screenId, '2-05')
-  assert.equal(resolveProductionScreen('bills', '3-02A')?.screenId, '3-02A')
-  assert.equal(resolveProductionScreen('living', '4-10')?.screenId, '4-10')
-  assert.equal(resolveProductionScreen('voice', '5-08')?.screenId, '5-08')
+  assert.equal(
+    resolveProductionScreen('transfer', 'transfer-recipient-select')?.screenKey,
+    'transfer-recipient-select',
+  )
+  assert.equal(resolveProductionScreen('bills', 'bill-camera')?.screenKey, 'bill-camera')
+  assert.equal(resolveProductionScreen('living', 'living-branches')?.screenKey, 'living-branches')
+  assert.equal(resolveProductionScreen('voice', 'voice-enabled')?.screenKey, 'voice-enabled')
   assert.equal(resolveProductionScreen('transfer', 'missing'), null)
 })
 
 test('production screen data includes the reference UI content', async () => {
-  const billsScreen = await loadProductionScreen('bills', '3-02A')
-  const voiceScreen = await loadProductionScreen('voice', '5-02')
+  const billsScreen = await loadProductionScreen('bills', 'bill-camera')
+  const voiceScreen = await loadProductionScreen('voice', 'voice-voice-preview')
 
   assert.equal(billsScreen?.title, '고지서를 비춰 주세요')
   assert.match(billsScreen?.contentHtml ?? '', /viewfinder/)
@@ -81,38 +89,38 @@ test('production screen data includes the reference UI content', async () => {
 })
 
 test('production action routes follow the service flow instead of raw screen order', () => {
-  assert.deepEqual(getProductionActionRoutes('transfer', '2-05').primary, {
+  assert.deepEqual(getProductionActionRoutes('transfer', 'transfer-recipient-select').primary, {
     name: 'transfer-screen',
-    params: { screenId: '2-07' },
+    params: { screenKey: 'transfer-amount-confirm' },
   })
-  assert.deepEqual(getProductionActionRoutes('transfer', '2-18').secondary, {
+  assert.deepEqual(getProductionActionRoutes('transfer', 'transfer-account-select').secondary, {
     name: 'transfer-screen',
-    params: { screenId: '2-05' },
+    params: { screenKey: 'transfer-recipient-select' },
   })
-  assert.deepEqual(getProductionActionRoutes('bills', '3-02A').primary, {
+  assert.deepEqual(getProductionActionRoutes('bills', 'bill-camera').primary, {
     name: 'bills-screen',
-    params: { screenId: '3-03' },
+    params: { screenKey: 'bill-ocr-processing' },
   })
-  assert.deepEqual(getProductionActionRoutes('living', '4-05').primary, {
+  assert.deepEqual(getProductionActionRoutes('living', 'living-session-expired').primary, {
     name: 'onboarding',
     params: { stepId: 'login' },
   })
-  assert.deepEqual(getProductionActionRoutes('living', '4-13').primary, {
+  assert.deepEqual(getProductionActionRoutes('living', 'living-voice-settings').primary, {
     name: 'my-page',
   })
-  assert.deepEqual(getProductionActionRoutes('living', '4-22').primary, {
+  assert.deepEqual(getProductionActionRoutes('living', 'living-reminder-speak').primary, {
     name: 'my-page',
   })
-  assert.deepEqual(getProductionActionRoutes('voice', '5-01').primary, {
+  assert.deepEqual(getProductionActionRoutes('voice', 'voice-voice-select').primary, {
     name: 'my-page-voice',
-    params: { screenId: '5-02' },
+    params: { screenKey: 'voice-voice-preview' },
   })
-  assert.deepEqual(getProductionActionRoutes('voice', '5-02').primary, {
+  assert.deepEqual(getProductionActionRoutes('voice', 'voice-voice-preview').primary, {
     name: 'my-page',
   })
-  assert.deepEqual(getProductionActionRoutes('voice', '5-08').primary, {
+  assert.deepEqual(getProductionActionRoutes('voice', 'voice-enabled').primary, {
     name: 'transfer-screen',
-    params: { screenId: '2-02' },
+    params: { screenKey: 'transfer-listening' },
   })
 })
 
@@ -123,30 +131,36 @@ test('voice selection screens reject legacy routes and allow only the my page fl
 
   assert.deepEqual(
     voiceRoute?.beforeEnter?.(
-      { params: { screenId: '5-01' } },
-      { name: 'living-screen', params: { screenId: '4-13' } },
+      { params: { screenKey: 'voice-voice-select' } },
+      { name: 'living-screen', params: { screenKey: 'living-voice-settings' } },
     ),
     { name: 'my-page' },
   )
   assert.deepEqual(
-    livingRoute?.beforeEnter?.({ params: { screenId: '4-13' } }, { name: 'living-home' }),
+    livingRoute?.beforeEnter?.(
+      { params: { screenKey: 'living-voice-settings' } },
+      { name: 'living-home' },
+    ),
     { name: 'my-page' },
   )
   assert.deepEqual(
     voiceRoute?.beforeEnter?.(
-      { params: { screenId: '5-02' } },
-      { name: 'voice-screen', params: { screenId: '5-01' } },
+      { params: { screenKey: 'voice-voice-preview' } },
+      { name: 'voice-screen', params: { screenKey: 'voice-voice-select' } },
     ),
     { name: 'my-page' },
   )
   assert.equal(
-    myPageVoiceRoute?.beforeEnter?.({ params: { screenId: '5-01' } }, { name: 'my-page' }),
+    myPageVoiceRoute?.beforeEnter?.(
+      { params: { screenKey: 'voice-voice-select' } },
+      { name: 'my-page' },
+    ),
     true,
   )
   assert.equal(
     myPageVoiceRoute?.beforeEnter?.(
-      { params: { screenId: '5-02' } },
-      { name: 'my-page-voice', params: { screenId: '5-01' } },
+      { params: { screenKey: 'voice-voice-preview' } },
+      { name: 'my-page-voice', params: { screenKey: 'voice-voice-select' } },
     ),
     true,
   )
@@ -154,8 +168,8 @@ test('voice selection screens reject legacy routes and allow only the my page fl
 
 test('home actions point to production detail routes', () => {
   assert.match(transferHomeSource, /transfer-screen/)
-  assert.match(transferHomeSource, /screenId: '2-02'/)
-  assert.match(transferHomeSource, /router\.push\(\{ name: 'transfer-screen'/)
+  assert.match(transferHomeSource, /screenKey: 'transfer-listening'/)
+  assert.match(transferHomeSource, /router\.push\(\{[\s\S]*name: 'transfer-screen'/)
   assert.match(transferHomeSource, /bills-home/)
   assert.match(serviceHomeSource, /bills-screen/)
   assert.match(serviceHomeSource, /living-screen/)
@@ -206,11 +220,11 @@ test('production bill route captures an image and binds it to a BILL_PAYMENT ses
   assert.match(routeViewSource, /photoToBlob\(photo\)/)
   assert.match(routeViewSource, /startSession\('BILL_PAYMENT'\)/)
   assert.match(routeViewSource, /billStore\.upload\(\{\s*image,\s*voiceSessionId,\s*\}\)/)
-  assert.match(routeViewSource, /await billStore\.upload\([\s\S]*?screenId: '3-04'/)
+  assert.match(routeViewSource, /await billStore\.upload\([\s\S]*?screenKey: 'bill-review'/)
 })
 
 test('bill source selection uses action buttons and removes the duplicate footer capture action', async () => {
-  const screen = await loadProductionScreen('bills', '3-02')
+  const screen = await loadProductionScreen('bills', 'bill-source-select')
 
   assert.equal(screen?.primaryLabel, '')
   assert.match(routeViewSource, /const isBillSourceSelection = computed/)
@@ -256,7 +270,10 @@ test('production transfer route requires candidate selection and prepares only s
     routeViewSource,
     /transferStore\.prepare\(\{[\s\S]*fromAccountId:[\s\S]*recipientId:[\s\S]*amount:/,
   )
-  assert.match(routeViewSource, /v-if="service === 'transfer' && screenId === '2-07'"/)
+  assert.match(
+    routeViewSource,
+    /v-if="service === 'transfer' && screenKey === 'transfer-amount-confirm'"/,
+  )
   assert.match(routeViewSource, /v-model="transferAmountInput"/)
   assert.match(routeViewSource, /recognizedAmount: transferAmount/)
   assert.match(routeViewSource, /amountCandidates: \[transferAmount\]/)
@@ -264,11 +281,11 @@ test('production transfer route requires candidate selection and prepares only s
   assert.doesNotMatch(routeViewSource, /recognizedAmount: 50000|amountCandidates: \[50000\]/)
   assert.match(
     routeViewSource,
-    /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-18' \} \}\)/,
+    /await go\(\{ name: 'transfer-screen', params: \{ screenKey: 'transfer-account-select' \} \}\)/,
   )
   assert.match(
     routeViewSource,
-    /await go\(\{ name: 'transfer-screen', params: \{ screenId: '2-08' \} \}\)/,
+    /await go\(\{ name: 'transfer-screen', params: \{ screenKey: 'transfer-confirm' \} \}\)/,
   )
   assert.doesNotMatch(routeViewSource, /guardian-verifications|requestGuardianVerification/)
 })
@@ -280,22 +297,22 @@ test('transfer confirmation renders the prepared recipient, amount, and masked a
   assert.match(routeViewSource, /account\.accountNumberMasked/)
   assert.match(
     routeViewSource,
-    /screen\?\.contentHtml[\s\S]*service === 'transfer' && screenId === '2-08'[\s\S]*!hideScreenActions/,
+    /screen\?\.contentHtml[\s\S]*service === 'transfer' && screenKey === 'transfer-confirm'[\s\S]*!hideScreenActions/,
   )
 })
 
 test('transfer entry clears stale state and a direct final-confirmation URL is blocked without a transfer', () => {
   assert.match(
     routeViewSource,
-    /currentService === 'transfer' && currentScreenId === '2-02'[\s\S]*transferStore\.reset\(\)[\s\S]*recipientKeyword\.value = ''/,
+    /currentService === 'transfer' && currentScreenId === 'transfer-listening'[\s\S]*transferStore\.reset\(\)[\s\S]*recipientKeyword\.value = ''/,
   )
   assert.match(
     routeViewSource,
-    /service\.value === 'transfer' && screenId\.value === '2-08' && !transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
+    /service\.value === 'transfer' &&\s*screenKey\.value === 'transfer-confirm' &&\s*!transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
   )
   assert.match(
     routeViewSource,
-    /service\.value === 'transfer' && screenId\.value === '2-09' && !transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
+    /service\.value === 'transfer' &&\s*screenKey\.value === 'transfer-risk-confirm' &&\s*!transferStore\.transferId[\s\S]*?actionError\.value = '송금 정보를 다시 확인해 주세요\.'/,
   )
 })
 
@@ -349,7 +366,10 @@ test('reminder cancel uses an accessible confirmation dialog and does not naviga
 
 test('transfer risk clearance skips rescoring after a safe risk check', () => {
   assert.match(routeViewSource, /if \(!transferStore\.riskCleared\)/)
-  assert.match(routeViewSource, /transferStore\.isRiskHeld\(risk\)[\s\S]*screenId: '2-10'/)
+  assert.match(
+    routeViewSource,
+    /transferStore\.isRiskHeld\(risk\)[\s\S]*screenKey: 'transfer-pending'/,
+  )
   assert.match(routeViewSource, /warningText[\s\S]*risk\?\.warning/)
   assert.match(routeViewSource, /confirmationCompleted/)
   assert.match(routeViewSource, /authenticationCompleted/)
@@ -359,7 +379,7 @@ test('transfer risk clearance skips rescoring after a safe risk check', () => {
 test('transfer failure screen renders runtime failure details instead of an empty result state', () => {
   assert.match(
     transferFlowPanelSource,
-    /const showFailure = computed\(\(\) => props\.screenId === '2-23'\)/,
+    /const showFailure = computed\(\(\) => props\.screenKey === 'transfer-failed'\)/,
   )
   assert.match(transferFlowPanelSource, /transferStore\.error\?\.message/)
   assert.match(transferFlowPanelSource, /transferStore\.amount/)
@@ -376,7 +396,7 @@ test('bill home reads the backend monthly totalCount field before legacy fallbac
 
 test('production screens hide technical screen identifiers from users', () => {
   assert.doesNotMatch(routeViewSource, /service-route-kicker/)
-  assert.doesNotMatch(routeViewSource, /\{\{ screenId \}\}/)
+  assert.doesNotMatch(routeViewSource, /\{\{ screenKey \}\}/)
   assert.match(routeViewSource, /screen\?\.title \|\| '서비스 화면'/)
 })
 
@@ -401,7 +421,7 @@ test('production choice groups stack one item per row for senior readability', (
 test('transfer account selection exposes loading, empty, error, and retry states', () => {
   assert.match(
     routeViewSource,
-    /v-if="service === 'transfer' && screenId === '2-18'"[\s\S]*serviceData\.loading\.accounts/,
+    /v-if="service === 'transfer' && screenKey === 'transfer-account-select'"[\s\S]*serviceData\.loading\.accounts/,
   )
   assert.match(routeViewSource, /serviceData\.errors\.accounts/)
   assert.match(routeViewSource, /reloadTransferAccounts/)
@@ -479,7 +499,7 @@ test('mobile branch screen loads nearby data, renders card fields, and guards di
 
   assert.match(
     loadScreenSource,
-    /service\.value === 'living'[\s\S]*?screenId\.value === '4-11'[\s\S]*?!serviceData\.mobileBranches\.length[\s\S]*?await go\(\{\s*name: 'living-screen',\s*params: \{ screenId: '4-10' \} \}\)[\s\S]*?screen\.value = nextScreen/,
+    /service\.value === 'living'[\s\S]*?screenKey\.value === 'living-branch-detail'[\s\S]*?!serviceData\.mobileBranches\.length[\s\S]*?await go\(\{\s*name: 'living-screen',\s*params: \{ screenKey: 'living-branches' \} \}\)[\s\S]*?screen\.value = nextScreen/,
   )
 })
 

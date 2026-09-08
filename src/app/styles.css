@@ -1,0 +1,4 @@
+@import '../shared/styles/globals.css';
+@import '../shared/styles/screen-content.css';
+@import '../features/onboarding/styles/onboarding.css';
+@import '../features/transfer/styles/transfer.css';

@@ -3,39 +3,39 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const viewSource = readFileSync(
-  new URL('../../src/views/DesignSystemView.vue', import.meta.url),
+  new URL('../../src/app/pages/DesignSystemPage.vue', import.meta.url),
   'utf8',
 )
-const appSource = readFileSync(new URL('../../src/App.vue', import.meta.url), 'utf8')
+const appSource = readFileSync(new URL('../../src/app/App.vue', import.meta.url), 'utf8')
 const actionViewSources = [
-  'src/components/onboarding/OnboardingShell.vue',
-  'src/views/OnboardingHelpView.vue',
-  'src/views/TransferHomeView.vue',
-  'src/views/ServiceHomeView.vue',
-  'src/views/ServiceRouteView.vue',
+  'src/features/onboarding/components/OnboardingShell.vue',
+  'src/features/onboarding/pages/OnboardingHelpPage.vue',
+  'src/features/transfer/pages/TransferHomePage.vue',
+  'src/app/pages/ServiceHomePage.vue',
+  'src/features/service-screen/pages/ServiceScreenPage.vue',
 ].map((path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8'))
 const globalStyleSource = readFileSync(
-  new URL('../../src/styles/globals.css', import.meta.url),
+  new URL('../../src/shared/styles/globals.css', import.meta.url),
   'utf8',
 )
 const appLayoutStyleSource = readFileSync(
-  new URL('../../src/styles/onboarding.css', import.meta.url),
+  new URL('../../src/features/onboarding/styles/onboarding.css', import.meta.url),
   'utf8',
 )
 const cardSource = readFileSync(
-  new URL('../../src/components/ui/card/Card.vue', import.meta.url),
+  new URL('../../src/shared/components/ui/card/Card.vue', import.meta.url),
   'utf8',
 )
 const buttonSource = readFileSync(
-  new URL('../../src/components/ui/button/Button.vue', import.meta.url),
+  new URL('../../src/shared/components/ui/button/Button.vue', import.meta.url),
   'utf8',
 )
 const inputSource = readFileSync(
-  new URL('../../src/components/ui/input/Input.vue', import.meta.url),
+  new URL('../../src/shared/components/ui/input/Input.vue', import.meta.url),
   'utf8',
 )
 const alertTitleSource = readFileSync(
-  new URL('../../src/components/ui/alert/AlertTitle.vue', import.meta.url),
+  new URL('../../src/shared/components/ui/alert/AlertTitle.vue', import.meta.url),
   'utf8',
 )
 

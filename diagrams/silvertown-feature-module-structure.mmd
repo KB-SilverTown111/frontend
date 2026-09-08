@@ -1,0 +1,23 @@
+%% SilverTown frontend - internal feature module convention
+graph TD
+  FEATURE["features/transfer<br/>기능 모듈"]
+
+  FEATURE --> PAGE["pages/<br/>라우터 진입점<br/>얇은 조합만"]
+  FEATURE --> COMPONENT["components/<br/>송금 전용 UI"]
+  FEATURE --> SCREEN["screens/<br/>화면 registry · copy"]
+  FEATURE --> STORE["stores/<br/>Pinia 상태 · 상태 전이"]
+  FEATURE --> API["api/<br/>송금 HTTP 요청"]
+  FEATURE --> MODEL["model/<br/>검증 · mapper · 도메인 규칙"]
+  FEATURE --> SERVICE["services/<br/>초안 저장 · 부수 효과"]
+
+  PAGE --> COMPONENT
+  PAGE --> SCREEN
+  COMPONENT --> STORE
+  STORE --> API
+  STORE --> MODEL
+  SERVICE --> MODEL
+
+  classDef feature fill:#17324d,color:#fff,stroke:#17324d;
+  classDef module fill:#eef6ee,stroke:#5b9b67,color:#1e4625;
+  class FEATURE feature;
+  class PAGE,COMPONENT,SCREEN,STORE,API,MODEL,SERVICE module;

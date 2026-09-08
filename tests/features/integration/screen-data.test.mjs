@@ -5,18 +5,18 @@ import test from 'node:test'
 import {
   loadProductionScreen,
   productionServiceScreens,
-} from '../../../src/services/productionServiceScreens.js'
+} from '../../../src/features/service-screen/services/productionServiceScreens.js'
 import {
   stripGuidanceCards,
   stripProductionSelectionIndicators,
-} from '../../../src/services/screenContent.js'
+} from '../../../src/features/service-screen/services/screenContent.js'
 
 const routeSource = readFileSync(
-  new URL('../../../src/views/ServiceRouteView.vue', import.meta.url),
+  new URL('../../../src/features/service-screen/pages/ServiceScreenPage.vue', import.meta.url),
   'utf8',
 )
 const styleSource = readFileSync(
-  new URL('../../../src/styles/screen-content.css', import.meta.url),
+  new URL('../../../src/shared/styles/screen-content.css', import.meta.url),
   'utf8',
 )
 
@@ -27,7 +27,7 @@ test('production screens load their bundled reference content', async () => {
     assert.equal(productionServiceScreens[service].length, count)
     const firstScreen = await loadProductionScreen(
       service,
-      productionServiceScreens[service][0].screenId,
+      productionServiceScreens[service][0].screenKey,
     )
     assert.equal(firstScreen.service, service)
     assert.ok(firstScreen.title)

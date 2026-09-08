@@ -6,13 +6,17 @@ import { createPinia, setActivePinia } from 'pinia'
 import { Capacitor } from '@capacitor/core'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 
-import { clearAuthSession, loadAuthSession, saveAuthSession } from '../../../src/api/authStorage.js'
-import { onboardingApi } from '../../../src/api/onboarding.js'
-import { useBillStore } from '../../../src/stores/bill.js'
-import { useOnboardingStore } from '../../../src/stores/onboarding.js'
-import { useServiceDataStore } from '../../../src/stores/serviceData.js'
-import { useTransferStore } from '../../../src/stores/transfer.js'
-import { useVoiceStore } from '../../../src/stores/voice.js'
+import {
+  clearAuthSession,
+  loadAuthSession,
+  saveAuthSession,
+} from '../../../src/shared/services/authStorage.js'
+import { onboardingApi } from '../../../src/features/onboarding/api/onboarding.js'
+import { useBillStore } from '../../../src/features/bills/stores/bill.js'
+import { useOnboardingStore } from '../../../src/features/onboarding/stores/onboarding.js'
+import { useServiceDataStore } from '../../../src/features/living/stores/serviceData.js'
+import { useTransferStore } from '../../../src/features/transfer/stores/transfer.js'
+import { useVoiceStore } from '../../../src/features/voice/stores/voice.js'
 
 test('store persists the signup auth session without a follow-up voice settings request', async () => {
   setActivePinia(createPinia())
@@ -294,7 +298,7 @@ test('store keeps an expired session after a transient refresh failure', async (
   const store = useOnboardingStore()
   try {
     assert.equal(await store.restoreAuthSession(), null)
-    assert.deepEqual(await loadAuthSession(), session)
+    assert.deepEqual(await loadAuthSession({ allowExpired: true }), session)
   } finally {
     onboardingApi.refresh = originalRefresh
     await clearAuthSession()
