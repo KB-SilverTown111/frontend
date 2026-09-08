@@ -16,6 +16,11 @@ export const voiceApi = {
     return data
   },
 
+  async uiAction(sessionId, request) {
+    const { data } = await apiClient.post(`/voice/sessions/${sessionId}/ui-actions`, request)
+    return data
+  },
+
   async event(sessionId, request) {
     const { data } = await apiClient.post(`/voice/sessions/${sessionId}/events`, request)
     return data
