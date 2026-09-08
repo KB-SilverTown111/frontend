@@ -51,6 +51,20 @@ export const transfersApi = {
     return data
   },
 
+  /** 보호자에게 인증번호 발송을 요청한다. 시작 요청은 본문을 받지 않는다. */
+  async startGuardianVerification(transferId) {
+    const { data } = await apiClient.post(`/transfers/${transferId}/guardian-verifications`, {})
+    return data
+  },
+
+  async verifyGuardian(transferId, verificationId, request) {
+    const { data } = await apiClient.post(
+      `/transfers/${transferId}/guardian-verifications/${verificationId}/verify`,
+      request,
+    )
+    return data
+  },
+
   async riskScore(request) {
     const { data } = await apiClient.post('/transfers/risk-score', request)
     return data

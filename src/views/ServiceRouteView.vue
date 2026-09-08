@@ -61,6 +61,7 @@ let billCameraStream = null
 let billCameraRequestId = 0
 const riskPurpose = ref('')
 const transferPin = ref('')
+const guardianCode = ref('')
 const recipientSearch = ref('')
 // Keep the legacy name for the hidden fallback input and existing route contracts.
 const recipientKeyword = recipientSearch
@@ -155,6 +156,13 @@ const showTransferFlow = computed(
 const TRANSFER_PIN_HELP_SCREENS = ['2-11', '2-13']
 const showTransferPinHelp = computed(
   () => service.value === 'transfer' && TRANSFER_PIN_HELP_SCREENS.includes(screenId.value),
+)
+/**
+ * 2-11은 화면 문구부터 "인증값 입력"으로 일반화돼 있다.
+ * 보호자 확인이 진행 중이면 인증번호를, 아니면 거래 승인 PIN을 받는다.
+ */
+const guardianPending = computed(
+  () => service.value === 'transfer' && Boolean(transferStore.guardianVerification),
 )
 const showRecipientSearch = computed(
   () => service.value === 'transfer' && ['2-05', '2-16'].includes(screenId.value),
@@ -1002,6 +1010,32 @@ async function handlePrimary() {
     }
     return
   }
+  if (
+    service.value === 'transfer' &&
+    screenId.value === '2-11' &&
+    transferStore.transferId &&
+    guardianPending.value
+  ) {
+    const code = guardianCode.value.trim()
+    if (!code) {
+      actionError.value = '보호자에게 온 번호를 입력해 주세요.'
+      return
+    }
+    try {
+      const verified = await transferStore.verifyGuardian(code)
+      guardianCode.value = ''
+      if (!verified?.verified) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+    } catch (error) {
+      guardianCode.value = ''
+      actionError.value = error.message
+      await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+    }
+    return
+  }
   if (service.value === 'transfer' && screenId.value === '2-11' && transferStore.transferId) {
     const pin = transferPin.value.trim()
     if (!/^\d{6}$/.test(pin)) {
@@ -1020,6 +1054,24 @@ async function handlePrimary() {
       transferPin.value = ''
       actionError.value = error.message
       await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+    }
+    return
+  }
+  if (
+    service.value === 'transfer' &&
+    ['2-12', '2-13'].includes(screenId.value) &&
+    transferStore.transferId
+  ) {
+    try {
+      const started = await transferStore.startGuardianVerification()
+      guardianCode.value = ''
+      if (started?.deliveryFailureCode) {
+        actionError.value = '아직 보호자에게 메시지를 보내지 못했어요. 잠시 후 다시 해주세요.'
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-11' } })
+    } catch (error) {
+      actionError.value = error.message
     }
     return
   }
@@ -1071,6 +1123,15 @@ async function handleSecondary() {
     showReminderCancelConfirm.value = true
     return
   }
+  // 보호자 확인 화면의 취소는 화면 이동만이 아니라 거래도 되돌린다.
+  if (
+    service.value === 'transfer' &&
+    ['2-12', '2-13'].includes(screenId.value) &&
+    transferStore.transferId
+  ) {
+    guardianCode.value = ''
+    await transferStore.cancel().catch(() => {})
+  }
   return go(secondaryRoute.value)
 }
 
@@ -1102,6 +1163,26 @@ onBeforeRouteLeave((to) => {
 })
 
 watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
+
+/** 2-10에 들어오면 보호자에게 확인 요청을 보낸다. 발송 실패는 2-12에서 안내한다. */
+watch(
+  [service, screenId],
+  async () => {
+    if (service.value !== 'transfer' || screenId.value !== '2-10') return
+    if (!transferStore.transferId || transferStore.guardianVerification) return
+
+    try {
+      const started = await transferStore.startGuardianVerification()
+      if (started?.deliveryFailureCode) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-12' } })
+      }
+    } catch (error) {
+      actionError.value = error?.message || '보호자에게 확인 요청을 보내지 못했어요.'
+      await go({ name: 'transfer-screen', params: { screenId: '2-12' } })
+    }
+  },
+  { immediate: true },
+)
 
 onBeforeUnmount(cleanupBillCamera)
 
@@ -1675,7 +1756,22 @@ onMounted(() => {
         </label>
 
         <label
-          v-if="service === 'transfer' && screenId === '2-11'"
+          v-if="service === 'transfer' && screenId === '2-11' && guardianPending"
+          class="service-route-input-field"
+        >
+          <span>보호자에게 온 인증번호</span>
+          <input
+            v-model="guardianCode"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            maxlength="12"
+            placeholder="받으신 번호를 그대로 적어주세요"
+            type="text"
+          />
+        </label>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-11' && !guardianPending"
           class="service-route-input-field"
         >
           <span>거래 승인 비밀번호</span>
@@ -1696,6 +1792,26 @@ onMounted(() => {
         >
           비밀번호를 아직 정하지 않으셨나요? 비밀번호 만들기
         </RouterLink>
+
+        <section
+          v-if="service === 'transfer' && screenId === '2-10' && guardianPending"
+          aria-label="보호자 확인 안내"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>보호자에게 확인 요청을 보냈어요</strong>
+          </div>
+          <p class="service-route-live-row">
+            보호자가 알려주는 번호를 아래에서 입력하시면 계속 보낼 수 있어요.
+          </p>
+          <RouterLink
+            class="service-route-pin-link"
+            :to="{ name: 'transfer-screen', params: { screenId: '2-11' } }"
+          >
+            인증번호 입력하기
+          </RouterLink>
+        </section>
 
         <TransferFlowPanel
           v-if="showTransferFlow"
