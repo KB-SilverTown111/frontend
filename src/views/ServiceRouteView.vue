@@ -379,6 +379,53 @@ const sentPlanRows = computed(() => {
   ]
 })
 
+/** 3-21은 실제 납부 금액을 보여준다. */
+const billPaymentRows = computed(() => {
+  if (service.value !== 'bills' || screenId.value !== '3-21') return []
+  if (!billStore.bill) return []
+
+  return [
+    { label: '납부처', value: billStore.bill.payee || '확인 중' },
+    { label: '납부 금액', value: formatCurrency(billStore.bill.amount) },
+  ]
+})
+
+/** 3-13은 최초 납부 결과를 그대로 다시 보여준다. */
+const billDuplicateRows = computed(() => {
+  if (service.value !== 'bills' || screenId.value !== '3-13') return []
+
+  const paid = billStore.result
+  if (!paid && !billStore.bill) return []
+
+  const rows = [
+    { label: '상태', value: paid?.status === 'PAID' || billStore.alreadyPaid ? '완료' : '확인 중' },
+    { label: '납부 금액', value: formatCurrency(paid?.amount ?? billStore.bill?.amount) },
+  ]
+
+  // 결제 번호와 납부 시각은 납부 응답에만 담겨 온다. 조회로는 받을 수 없으므로
+  // 이전에 끝난 납부는 값을 비워 두고 아래 안내 문구로 대신한다.
+  if (billStore.paymentId) rows.push({ label: '결제 번호', value: billStore.paymentId })
+  if (paid?.paidAt) rows.push({ label: '납부한 날', value: formatDate(paid.paidAt) })
+  return rows
+})
+
+/** 결제 번호를 모르는 경우에도 두 번 빠져나가지 않았다는 것은 분명히 알린다. */
+const billDuplicateNote = computed(() =>
+  billStore.paymentId
+    ? '돈이 두 번 빠져나가지 않았어요.'
+    : '이전에 납부가 끝난 고지서예요. 돈이 두 번 빠져나가지 않았어요.',
+)
+
+/** 3-16에서 읽어줄 문장. 금액과 기한을 사람이 듣기 쉬운 순서로 붙인다. */
+const billSpokenText = computed(() => {
+  const bill = billStore.bill
+  if (!bill) return ''
+
+  const parts = [bill.payee || '고지서', formatCurrency(bill.amount)]
+  if (bill.dueDate) parts.push(`${formatDate(bill.dueDate)}까지`)
+  return parts.join(', ')
+})
+
 function formatCurrency(value) {
   const amount = Number(value)
   return Number.isFinite(amount) ? `${amount.toLocaleString('ko-KR')}원` : '잔액 확인 중'
@@ -1001,10 +1048,15 @@ async function handlePrimary() {
     return
   }
   if (service.value === 'bills' && screenId.value === '3-06' && billStore.billId) {
-    await billStore
-      .execute()
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
+    // 이미 낸 고지서는 다시 실행하지 않고 최초 결과를 보여준다.
+    if (billStore.alreadyPaid) {
+      return go({ name: 'bills-screen', params: { screenId: '3-13' } })
+    }
+    // 실행은 진행 화면에서 돈다. 여기서 기다리면 3-21을 볼 수 없다.
+    return go({ name: 'bills-screen', params: { screenId: '3-21' } })
+  }
+  if (service.value === 'bills' && screenId.value === '3-16') {
+    await speakBill()
     return
   }
   if (service.value === 'bills' && screenId.value === '3-05' && billStore.billId) {
@@ -1256,10 +1308,25 @@ async function handlePrimary() {
   return go(primaryRoute.value)
 }
 
+/** 고지서 내용을 소리로 읽어준다. 재생 계층은 음성 스토어를 그대로 쓴다. */
+async function speakBill() {
+  actionError.value = ''
+  if (!billSpokenText.value) {
+    actionError.value = '읽어드릴 고지서 내용이 없어요.'
+    return
+  }
+
+  const spoken = await voiceStore.speakText(billSpokenText.value).catch(() => null)
+  if (!spoken?.spoken) {
+    actionError.value = '소리로 읽어드릴 수 없어 화면으로 안내해 드릴게요.'
+  }
+}
+
 async function handleSecondary() {
   if (!screen.value || isBusy.value) return
   actionError.value = ''
 
+  if (service.value === 'bills' && screenId.value === '3-16') voiceStore.silence()
   if (service.value === 'bills' && screenId.value === '3-02A') return uploadBill('gallery')
   if (service.value === 'bills' && screenId.value === '3-03') billStore.reset()
   if (isReminderEditScreen.value) {
@@ -1307,6 +1374,10 @@ watch(showReminderCancelConfirm, async (visible) => {
 onBeforeRouteLeave((to) => {
   cleanupBillCamera()
 
+  // 고지서 읽어주기는 음성 서비스가 아니라 아래 조건에 걸리지 않는다.
+  // 화면을 벗어난 뒤에도 금액이 계속 들리지 않도록 여기서 먼저 끊는다.
+  if (service.value === 'bills' && screenId.value === '3-16') voiceStore.silence()
+
   if (!VOICE_SERVICES.includes(service.value)) return
   if (to.meta?.service === service.value || to.name === `${service.value}-home`) return
 
@@ -1316,6 +1387,36 @@ onBeforeRouteLeave((to) => {
 })
 
 watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
+
+/** 3-21에 들어오면 납부를 실행한다. 결과에 따라 완료·실패 화면으로 보낸다. */
+watch(
+  // billId를 함께 본다. ?billId=로 바로 들어오면 고지서를 읽기 전에 한 번 돌기 때문이다.
+  [service, screenId, () => billStore.billId],
+  async () => {
+    if (service.value !== 'bills' || screenId.value !== '3-21') return
+    if (!billStore.billId || billStore.busy) return
+    if (billStore.result) return
+
+    try {
+      await billStore.execute()
+      await go({ name: 'bills-screen', params: { screenId: '3-07' } })
+    } catch (error) {
+      actionError.value = error?.message || '납부하지 못했어요. 다시 시도해 주세요.'
+      await go({ name: 'bills-screen', params: { screenId: '3-22' } })
+    }
+  },
+  { immediate: true },
+)
+
+/** 3-16에 들어오면 바로 읽어준다. */
+watch(
+  [service, screenId],
+  () => {
+    if (service.value !== 'bills' || screenId.value !== '3-16') return
+    speakBill()
+  },
+  { immediate: true },
+)
 
 /** 약속 화면에 들어올 때 저장소를 읽고, 고치기 화면이면 입력칸을 채운다. */
 watch(
@@ -2327,6 +2428,47 @@ onMounted(() => {
             </Button>
           </fieldset>
         </template>
+
+        <section
+          v-if="billPaymentRows.length || billDuplicateRows.length"
+          :aria-label="billDuplicateRows.length ? '이미 처리된 납부' : '납부 진행'"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>
+              {{ billDuplicateRows.length ? '처음 완료된 결과예요' : '은행에 보내고 있어요' }}
+            </strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in billDuplicateRows.length ? billDuplicateRows : billPaymentRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+          <p
+            v-if="billDuplicateRows.length"
+            class="service-route-live-empty"
+          >
+            {{ billDuplicateNote }}
+          </p>
+        </section>
+
+        <section
+          v-if="service === 'bills' && screenId === '3-16' && billSpokenText"
+          aria-label="읽고 있는 내용"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>읽고 있는 내용</strong>
+          </div>
+          <p class="service-route-live-row">{{ billSpokenText }}</p>
+        </section>
 
         <VoiceConversationPanel
           v-if="showVoiceControl"

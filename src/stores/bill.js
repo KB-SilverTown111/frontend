@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { billsApi } from '../api/bills.js'
@@ -13,6 +13,13 @@ export const useBillStore = defineStore('bill', () => {
   const executeIdempotencyKey = ref('')
   const error = ref(null)
   const busy = ref(false)
+
+  /** 이미 납부가 끝난 고지서다. 다시 내려 하면 화면 3-13으로 안내한다. */
+  const alreadyPaid = computed(
+    () => bill.value?.status === 'PAID' || result.value?.status === 'PAID',
+  )
+  /** 납부 결과의 결제 번호. 서버 응답의 paymentId를 그대로 쓴다. */
+  const paymentId = computed(() => result.value?.paymentId ?? '')
 
   async function run(request) {
     busy.value = true
@@ -88,6 +95,8 @@ export const useBillStore = defineStore('bill', () => {
     bill,
     confirmationToken,
     result,
+    alreadyPaid,
+    paymentId,
     error,
     busy,
     upload,
