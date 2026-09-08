@@ -1374,6 +1374,10 @@ watch(showReminderCancelConfirm, async (visible) => {
 onBeforeRouteLeave((to) => {
   cleanupBillCamera()
 
+  // 고지서 읽어주기는 음성 서비스가 아니라 아래 조건에 걸리지 않는다.
+  // 화면을 벗어난 뒤에도 금액이 계속 들리지 않도록 여기서 먼저 끊는다.
+  if (service.value === 'bills' && screenId.value === '3-16') voiceStore.silence()
+
   if (!VOICE_SERVICES.includes(service.value)) return
   if (to.meta?.service === service.value || to.name === `${service.value}-home`) return
 
@@ -1386,7 +1390,8 @@ watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
 
 /** 3-21에 들어오면 납부를 실행한다. 결과에 따라 완료·실패 화면으로 보낸다. */
 watch(
-  [service, screenId],
+  // billId를 함께 본다. ?billId=로 바로 들어오면 고지서를 읽기 전에 한 번 돌기 때문이다.
+  [service, screenId, () => billStore.billId],
   async () => {
     if (service.value !== 'bills' || screenId.value !== '3-21') return
     if (!billStore.billId || billStore.busy) return
