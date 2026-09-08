@@ -14,6 +14,7 @@ import {
 } from '@/services/productionServiceScreens.js'
 import {
   captureVideoFrame,
+  CONTACTS_PERMISSION_DENIED,
   getContactCandidates,
   getCurrentLocation,
   photoToBlob,
@@ -289,6 +290,71 @@ const isBusy = computed(
     (isMobileBranchListScreen.value &&
       (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
 )
+/** 2-19는 어디까지 하셨는지 실제 초안 내용으로 보여준다. */
+const unfinishedTransferRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-19') return []
+
+  const prepared = transferStore.prepared
+  if (!prepared) return []
+
+  const recipient = prepared.recipient || transferStore.recipient || {}
+  return [
+    {
+      label: '받는 분',
+      value: recipient.displayName || recipient.name || transferStore.recipientName || '받는 분',
+    },
+    { label: '보내려던 금액', value: formatCurrency(prepared.amount ?? transferStore.amount) },
+  ]
+})
+
+/** 2-20은 돈이 나가지 않았음을 남은 잔액으로 확인시켜 준다. */
+const remainingBalanceRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-20') return []
+
+  const account = transferStore.selectedAccount || serviceData.accounts[0]
+  if (!account) return []
+
+  return [
+    { label: '출금 계좌', value: account.accountName || account.accountType || '내 계좌' },
+    { label: '그대로 있는 잔액', value: formatCurrency(account.balance) },
+  ]
+})
+
+/** 3-21은 실제 납부 금액을 보여준다. */
+const billPaymentRows = computed(() => {
+  if (service.value !== 'bills' || screenId.value !== '3-21') return []
+  if (!billStore.bill) return []
+
+  return [
+    { label: '납부처', value: billStore.bill.payee || '확인 중' },
+    { label: '납부 금액', value: formatCurrency(billStore.bill.amount) },
+  ]
+})
+
+/** 3-13은 최초 납부 결과를 그대로 다시 보여준다. */
+const billDuplicateRows = computed(() => {
+  if (service.value !== 'bills' || screenId.value !== '3-13') return []
+
+  const paid = billStore.result
+  if (!paid && !billStore.bill) return []
+
+  return [
+    { label: '상태', value: paid?.status === 'PAID' || billStore.alreadyPaid ? '완료' : '확인 중' },
+    { label: '결제 번호', value: billStore.paymentId || '확인 중' },
+    { label: '납부 금액', value: formatCurrency(paid?.amount ?? billStore.bill?.amount) },
+    { label: '납부한 날', value: formatDate(paid?.paidAt) },
+  ]
+})
+
+/** 3-16에서 읽어줄 문장. 금액과 기한을 사람이 듣기 쉬운 순서로 붙인다. */
+const billSpokenText = computed(() => {
+  const bill = billStore.bill
+  if (!bill) return ''
+
+  const parts = [bill.payee || '고지서', formatCurrency(bill.amount)]
+  if (bill.dueDate) parts.push(`${formatDate(bill.dueDate)}까지`)
+  return parts.join(', ')
+})
 
 function formatCurrency(value) {
   const amount = Number(value)
@@ -736,7 +802,17 @@ async function loadRecipients() {
   actionBusy.value = true
   actionError.value = ''
   try {
-    const contacts = await getContactCandidates().catch(() => [])
+    let contacts = []
+    try {
+      contacts = await getContactCandidates()
+    } catch (contactsError) {
+      // 권한 거부는 안내 화면으로 보내고, 그 밖의 실패는 직접 검색으로 이어간다.
+      if (contactsError?.code === CONTACTS_PERMISSION_DENIED) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-06' } })
+        return
+      }
+    }
+
     const found = await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
     if (!found.length) {
       throw new Error('받는 분을 찾지 못했어요. 이름이나 계좌 정보를 다시 확인해 주세요.')
@@ -902,10 +978,15 @@ async function handlePrimary() {
     return
   }
   if (service.value === 'bills' && screenId.value === '3-06' && billStore.billId) {
-    await billStore
-      .execute()
-      .then(() => go(primaryRoute.value))
-      .catch((error) => (actionError.value = error.message))
+    // 이미 낸 고지서는 다시 실행하지 않고 최초 결과를 보여준다.
+    if (billStore.alreadyPaid) {
+      return go({ name: 'bills-screen', params: { screenId: '3-13' } })
+    }
+    // 실행은 진행 화면에서 돈다. 여기서 기다리면 3-21을 볼 수 없다.
+    return go({ name: 'bills-screen', params: { screenId: '3-21' } })
+  }
+  if (service.value === 'bills' && screenId.value === '3-16') {
+    await speakBill()
     return
   }
   if (service.value === 'bills' && screenId.value === '3-05' && billStore.billId) {
@@ -1057,6 +1138,18 @@ async function handlePrimary() {
     }
     return
   }
+  if (service.value === 'transfer' && screenId.value === '2-19') {
+    if (!transferStore.transferId) {
+      transferStore.discardDraft()
+      return go(homeRoute.value)
+    }
+    // 초안이 이미 있으므로 계좌·금액을 다시 고르지 않고 최종 확인으로 간다.
+    return go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+  }
+  if (service.value === 'transfer' && screenId.value === '2-21') {
+    transferStore.reset()
+    return go({ name: 'transfer-screen', params: { screenId: '2-02' } })
+  }
   if (
     service.value === 'transfer' &&
     ['2-12', '2-13'].includes(screenId.value) &&
@@ -1113,15 +1206,35 @@ async function handlePrimary() {
   return go(primaryRoute.value)
 }
 
+/** 고지서 내용을 소리로 읽어준다. 재생 계층은 음성 스토어를 그대로 쓴다. */
+async function speakBill() {
+  actionError.value = ''
+  if (!billSpokenText.value) {
+    actionError.value = '읽어드릴 고지서 내용이 없어요.'
+    return
+  }
+
+  const spoken = await voiceStore.speakText(billSpokenText.value).catch(() => null)
+  if (!spoken?.spoken) {
+    actionError.value = '소리로 읽어드릴 수 없어 화면으로 안내해 드릴게요.'
+  }
+}
+
 async function handleSecondary() {
   if (!screen.value || isBusy.value) return
   actionError.value = ''
 
+  if (service.value === 'bills' && screenId.value === '3-16') voiceStore.silence()
   if (service.value === 'bills' && screenId.value === '3-02A') return uploadBill('gallery')
   if (service.value === 'bills' && screenId.value === '3-03') billStore.reset()
   if (isReminderEditScreen.value) {
     showReminderCancelConfirm.value = true
     return
+  }
+  // "없던 일로 하기"는 화면만 넘기지 않고 남아 있던 초안을 실제로 되돌린다.
+  if (service.value === 'transfer' && screenId.value === '2-19') {
+    if (transferStore.transferId) await transferStore.cancel().catch(() => {})
+    transferStore.discardDraft()
   }
   // 보호자 확인 화면의 취소는 화면 이동만이 아니라 거래도 되돌린다.
   if (
@@ -1164,6 +1277,45 @@ onBeforeRouteLeave((to) => {
 
 watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
 
+/** 3-21에 들어오면 납부를 실행한다. 결과에 따라 완료·실패 화면으로 보낸다. */
+watch(
+  [service, screenId],
+  async () => {
+    if (service.value !== 'bills' || screenId.value !== '3-21') return
+    if (!billStore.billId || billStore.busy) return
+    if (billStore.result) return
+
+    try {
+      await billStore.execute()
+      await go({ name: 'bills-screen', params: { screenId: '3-07' } })
+    } catch (error) {
+      actionError.value = error?.message || '납부하지 못했어요. 다시 시도해 주세요.'
+      await go({ name: 'bills-screen', params: { screenId: '3-22' } })
+    }
+  },
+  { immediate: true },
+)
+
+/** 3-16에 들어오면 바로 읽어준다. */
+watch(
+  [service, screenId],
+  () => {
+    if (service.value !== 'bills' || screenId.value !== '3-16') return
+    speakBill()
+  },
+  { immediate: true },
+)
+
+/** 2-20에서 보여줄 잔액이 없으면 계좌를 불러온다. */
+watch(
+  [service, screenId],
+  () => {
+    if (service.value !== 'transfer' || screenId.value !== '2-20') return
+    if (serviceData.accounts.length || serviceData.loading.accounts) return
+    serviceData.loadAccounts({ active: true }).catch(() => {})
+  },
+  { immediate: true },
+)
 /** 2-10에 들어오면 보호자에게 확인 요청을 보낸다. 발송 실패는 2-12에서 안내한다. */
 watch(
   [service, screenId],
@@ -1183,7 +1335,6 @@ watch(
   },
   { immediate: true },
 )
-
 onBeforeUnmount(cleanupBillCamera)
 
 onMounted(() => {
@@ -1973,6 +2124,88 @@ onMounted(() => {
               <b>{{ row.value }}</b>
             </div>
           </div>
+        </section>
+        <section
+          v-if="unfinishedTransferRows.length"
+          aria-label="하시던 송금"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>여기까지 하셨어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in unfinishedTransferRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="remainingBalanceRows.length"
+          aria-label="남은 잔액"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>계좌에서 빠져나간 금액이 없어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in remainingBalanceRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="billPaymentRows.length || billDuplicateRows.length"
+          :aria-label="billDuplicateRows.length ? '이미 처리된 납부' : '납부 진행'"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>
+              {{ billDuplicateRows.length ? '처음 완료된 결과예요' : '은행에 보내고 있어요' }}
+            </strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in billDuplicateRows.length ? billDuplicateRows : billPaymentRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+          <p
+            v-if="billDuplicateRows.length"
+            class="service-route-live-empty"
+          >
+            돈이 두 번 빠져나가지 않았어요.
+          </p>
+        </section>
+
+        <section
+          v-if="service === 'bills' && screenId === '3-16' && billSpokenText"
+          aria-label="읽고 있는 내용"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>읽고 있는 내용</strong>
+          </div>
+          <p class="service-route-live-row">{{ billSpokenText }}</p>
         </section>
 
         <VoiceConversationPanel
