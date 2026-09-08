@@ -30,6 +30,7 @@ import {
 } from '@/services/mobileBranchPresentation.js'
 import { useBillStore } from '@/stores/bill.js'
 import { useServiceDataStore } from '@/stores/serviceData.js'
+import { useTransferPlanStore } from '@/stores/transferPlan.js'
 import { useTransferStore } from '@/stores/transfer.js'
 import { useVoiceStore } from '@/stores/voice.js'
 import TransferFlowPanel from '@/components/patterns/TransferFlowPanel.vue'
@@ -39,6 +40,7 @@ const route = useRoute()
 const router = useRouter()
 const serviceData = useServiceDataStore()
 const transferStore = useTransferStore()
+const transferPlanStore = useTransferPlanStore()
 const billStore = useBillStore()
 const voiceStore = useVoiceStore()
 
@@ -65,7 +67,21 @@ const recipientSearch = ref('')
 // Keep the legacy name for the hidden fallback input and existing route contracts.
 const recipientKeyword = recipientSearch
 const transferAmountInput = ref('')
+const planLabel = ref('')
+const planAmount = ref('')
+const planDay = ref('')
+const planRepeat = ref('MONTHLY')
 let loadSequence = 0
+
+const planTargetId = computed(() => String(route.query.planId || '').trim())
+const PLAN_SCREENS = ['2-27', '2-28', '2-29', '2-30', '2-31']
+const isPlanScreen = computed(
+  () => service.value === 'transfer' && PLAN_SCREENS.includes(screenId.value),
+)
+const isPlanFormScreen = computed(
+  () => service.value === 'transfer' && ['2-28', '2-31'].includes(screenId.value),
+)
+const editingPlan = computed(() => transferPlanStore.findPlan(planTargetId.value))
 
 const actionRoutes = computed(() => getProductionActionRoutes(service.value, screenId.value))
 const homeRoute = computed(() => getProductionHomeRoute(service.value))
@@ -281,6 +297,49 @@ const isBusy = computed(
     (isMobileBranchListScreen.value &&
       (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
 )
+
+function planScheduleLabel(plan) {
+  const repeat = plan?.repeat === 'ONCE' ? '이번 달' : '매달'
+  return `${repeat} ${plan?.dayOfMonth}일`
+}
+
+/** 2-27은 정해둔 약속을 날짜순으로 보여준다. */
+const planRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-27') return []
+
+  return transferPlanStore.sortedPlans.map((plan) => ({
+    id: plan.id,
+    label: `${plan.label} · ${planScheduleLabel(plan)}`,
+    value: formatCurrency(plan.amount),
+    sent: transferPlanStore.alreadySentThisMonth(plan.id),
+  }))
+})
+
+/** 2-29는 오늘 보낼 약속만 보여준다. */
+const duePlanRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-29') return []
+
+  return transferPlanStore.duePlans.map((plan) => ({
+    id: plan.id,
+    label: plan.label,
+    value: formatCurrency(plan.amount),
+    sent: transferPlanStore.alreadySentThisMonth(plan.id),
+  }))
+})
+
+/** 2-30은 이번 달에 이미 보낸 약속을 확인시켜 준다. */
+const sentPlanRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-30') return []
+
+  const plan = editingPlan.value
+  if (!plan) return []
+
+  return [
+    { label: '보낼 돈', value: plan.label },
+    { label: '금액', value: formatCurrency(plan.amount) },
+    { label: '보낸 날', value: formatDate(plan.lastSentAt) },
+  ]
+})
 
 function formatCurrency(value) {
   const amount = Number(value)
@@ -1023,6 +1082,38 @@ async function handlePrimary() {
     }
     return
   }
+  if (service.value === 'transfer' && ['2-28', '2-31'].includes(screenId.value)) {
+    const input = {
+      label: planLabel.value.trim(),
+      recipientName: planLabel.value.trim(),
+      amount: Number(planAmount.value.replace(/[^0-9]/g, '')),
+      dayOfMonth: Number(planDay.value),
+      repeat: planRepeat.value,
+    }
+    const saved =
+      screenId.value === '2-31'
+        ? transferPlanStore.updatePlan(planTargetId.value, input)
+        : transferPlanStore.addPlan(input)
+
+    if (!saved) {
+      actionError.value = transferPlanStore.error || '약속을 저장하지 못했어요.'
+      return
+    }
+    return go({ name: 'transfer-screen', params: { screenId: '2-27' } })
+  }
+  if (service.value === 'transfer' && screenId.value === '2-29') {
+    const due = transferPlanStore.duePlans[0]
+    if (!due) return go({ name: 'transfer-screen', params: { screenId: '2-27' } })
+    if (transferPlanStore.alreadySentThisMonth(due.id)) {
+      return go({
+        name: 'transfer-screen',
+        params: { screenId: '2-30' },
+        query: { planId: due.id },
+      })
+    }
+    // 약속은 알림까지만 한다. 실제 송금은 사용자가 평소 흐름으로 직접 진행한다.
+    return go({ name: 'transfer-screen', params: { screenId: '2-02' } })
+  }
   if (service.value === 'transfer' && screenId.value === '2-22' && transferStore.transferId) {
     if (!transferStore.confirmationCompleted || !transferStore.authenticationCompleted) {
       actionError.value = '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.'
@@ -1071,6 +1162,11 @@ async function handleSecondary() {
     showReminderCancelConfirm.value = true
     return
   }
+  // 2-31의 두 번째 단추는 약속 삭제다. 되돌릴 수 없어 확인 문구를 남긴다.
+  if (service.value === 'transfer' && screenId.value === '2-31' && planTargetId.value) {
+    transferPlanStore.removePlan(planTargetId.value)
+    return go({ name: 'transfer-screen', params: { screenId: '2-27' } })
+  }
   return go(secondaryRoute.value)
 }
 
@@ -1102,6 +1198,31 @@ onBeforeRouteLeave((to) => {
 })
 
 watch([service, screenId, reminderTargetId], loadScreen, { immediate: true })
+
+/** 약속 화면에 들어올 때 저장소를 읽고, 고치기 화면이면 입력칸을 채운다. */
+watch(
+  [service, screenId, planTargetId],
+  () => {
+    if (!isPlanScreen.value) return
+    transferPlanStore.ensureLoaded()
+
+    const plan = editingPlan.value
+    if (screenId.value === '2-31' && plan) {
+      planLabel.value = plan.label
+      planAmount.value = String(plan.amount)
+      planDay.value = String(plan.dayOfMonth)
+      planRepeat.value = plan.repeat
+      return
+    }
+    if (screenId.value === '2-28') {
+      planLabel.value = ''
+      planAmount.value = ''
+      planDay.value = ''
+      planRepeat.value = 'MONTHLY'
+    }
+  },
+  { immediate: true },
+)
 
 onBeforeUnmount(cleanupBillCamera)
 
@@ -1858,6 +1979,132 @@ onMounted(() => {
             </div>
           </div>
         </section>
+
+        <section
+          v-if="service === 'transfer' && screenId === '2-27'"
+          aria-label="정해둔 보낼 돈"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>정해두신 보낼 돈</strong>
+          </div>
+          <p
+            v-if="!planRows.length"
+            class="service-route-live-empty"
+          >
+            아직 정해두신 것이 없어요. 아래에서 추가하실 수 있어요.
+          </p>
+          <div
+            v-else
+            class="service-route-live-rows"
+          >
+            <RouterLink
+              v-for="row in planRows"
+              :key="row.id"
+              class="service-route-live-row"
+              :to="{
+                name: 'transfer-screen',
+                params: { screenId: '2-31' },
+                query: { planId: row.id },
+              }"
+            >
+              <span>{{ row.label }}{{ row.sent ? ' · 이번 달 보냄' : '' }}</span>
+              <b>{{ row.value }}</b>
+            </RouterLink>
+          </div>
+        </section>
+
+        <section
+          v-if="duePlanRows.length"
+          aria-label="오늘 보낼 돈"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>오늘 보내실 것</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in duePlanRows"
+              :key="row.id"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}{{ row.sent ? ' · 이번 달 보냄' : '' }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="sentPlanRows.length"
+          aria-label="이미 보낸 약속"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>이번 달에 이미 보내셨어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in sentPlanRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+
+        <template v-if="isPlanFormScreen">
+          <label class="service-route-input-field">
+            <span>무엇을 보내는 돈인가요</span>
+            <input
+              v-model="planLabel"
+              maxlength="30"
+              placeholder="예: 월세, 손주 용돈"
+              type="text"
+            />
+          </label>
+          <label class="service-route-input-field">
+            <span>보낼 금액</span>
+            <input
+              v-model="planAmount"
+              inputmode="numeric"
+              maxlength="12"
+              placeholder="예: 400000"
+              type="text"
+            />
+          </label>
+          <label class="service-route-input-field">
+            <span>보낼 날짜 (1~31일)</span>
+            <input
+              v-model="planDay"
+              inputmode="numeric"
+              maxlength="2"
+              placeholder="예: 25"
+              type="text"
+            />
+          </label>
+          <fieldset class="service-route-input-field">
+            <legend>얼마나 자주 보낼까요</legend>
+            <Button
+              class="w-full"
+              :variant="planRepeat === 'MONTHLY' ? 'default' : 'secondary'"
+              @click="planRepeat = 'MONTHLY'"
+            >
+              매달 반복
+            </Button>
+            <Button
+              class="w-full"
+              :variant="planRepeat === 'ONCE' ? 'default' : 'secondary'"
+              @click="planRepeat = 'ONCE'"
+            >
+              이번 한 번만
+            </Button>
+          </fieldset>
+        </template>
 
         <VoiceConversationPanel
           v-if="showVoiceControl"
