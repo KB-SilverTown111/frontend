@@ -1478,6 +1478,17 @@ watch(
       return
     }
 
+    const context = await loadContext(service.value, screenId.value)
+    if (context?.redirected) return
+    if (
+      billStore.bill?.status !== 'CONFIRMED' ||
+      billStore.bill?.executable !== true ||
+      !String(billStore.confirmationToken || '').trim()
+    ) {
+      await go({ name: 'bills-screen', params: { screenId: '3-05' } })
+      return
+    }
+
     try {
       const response = await billStore.execute()
       await go({

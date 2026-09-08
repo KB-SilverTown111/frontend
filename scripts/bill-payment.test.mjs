@@ -22,6 +22,10 @@ const primaryHandlerSource = routeSource.slice(
   routeSource.indexOf('async function handlePrimary'),
   routeSource.indexOf('async function handleSecondary'),
 )
+const billExecutionSource = routeSource.slice(
+  routeSource.indexOf('/** 3-21에 들어오면'),
+  routeSource.indexOf('/** 3-16에 들어오면'),
+)
 
 test('bill confirmation sends all required confirmation values from the 3-05 flow', () => {
   assert.match(
@@ -55,6 +59,18 @@ test('bill execution routes by the actual SUCCESS response', () => {
   assert.match(routeSource, /screenId: ['"]3-22['"]|3-22/)
 })
 
+test('bill execution validates confirmation state after loading context', () => {
+  const loadContextIndex = billExecutionSource.indexOf('await loadContext(')
+  const executeIndex = billExecutionSource.indexOf('await billStore.execute()')
+  assert.ok(loadContextIndex >= 0)
+  assert.ok(executeIndex > loadContextIndex)
+
+  const validationSource = billExecutionSource.slice(loadContextIndex, executeIndex)
+  assert.match(validationSource, /billStore\.bill\?\.status !== ['"]CONFIRMED['"]/)
+  assert.match(validationSource, /billStore\.bill\?\.executable !== true/)
+  assert.match(validationSource, /billStore\.confirmationToken/)
+  assert.match(validationSource, /screenId: ['"]3-05['"]|3-05/)
+})
 test('bill success screen renders actual payment result fields', () => {
   assert.match(routeSource, /billStore\.result\?\.paymentId/)
   assert.match(routeSource, /billStore\.result\?\.amount/)
