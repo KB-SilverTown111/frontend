@@ -5,6 +5,11 @@ import { normalizeApiError } from '../api/errors.js'
 import { createIdempotencyKey } from '../api/request.js'
 import { transfersApi } from '../api/transfers.js'
 import { voiceApi } from '../api/voice.js'
+import {
+  clearTransferDraft,
+  loadTransferDraft,
+  saveTransferDraft,
+} from '../services/transferDraft.js'
 
 export const useTransferStore = defineStore('transfer', () => {
   const sessionId = ref('')
@@ -178,6 +183,8 @@ export const useTransferStore = defineStore('transfer', () => {
     resetFinancialExecutionState()
     prepared.value = response
     transferId.value = response?.transferId ?? ''
+    // 화면을 벗어나도 이어서 보낼 수 있게 조회할 id만 남긴다.
+    saveTransferDraft(transferId.value, response?.preparedAt)
     amount.value = response?.amount ?? transferAmount
     draftAmount.value = amount.value
     executeIdempotencyKey.value = createIdempotencyKey()
@@ -281,12 +288,32 @@ export const useTransferStore = defineStore('transfer', () => {
       }),
     )
     result.value = response
+    clearTransferDraft()
     return response
+  }
+
+  /** 저장해 둔 초안을 서버에서 다시 읽는다. 없거나 읽지 못하면 기록을 지운다. */
+  async function restoreDraft() {
+    const draft = loadTransferDraft()
+    if (!draft) return null
+
+    try {
+      await load(draft.transferId)
+      return draft
+    } catch {
+      clearTransferDraft()
+      return null
+    }
+  }
+
+  function discardDraft() {
+    clearTransferDraft()
   }
 
   async function cancel() {
     const response = await run(() => transfersApi.cancel(transferId.value))
     prepared.value = response
+    clearTransferDraft()
     resetFinancialExecutionState()
     return response
   }
@@ -324,6 +351,7 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   function reset() {
+    clearTransferDraft()
     sessionId.value = ''
     transferId.value = ''
     candidates.value = []
@@ -388,6 +416,8 @@ export const useTransferStore = defineStore('transfer', () => {
     startGuardianVerification,
     verifyGuardian,
     execute,
+    restoreDraft,
+    discardDraft,
     cancel,
     assessRisk,
     checkRisk,
