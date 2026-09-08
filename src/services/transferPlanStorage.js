@@ -82,12 +82,14 @@ export function saveTransferPlans(plans) {
   const store = storage()
   const normalized = (Array.isArray(plans) ? plans : []).map(normalizePlan).filter(Boolean)
 
+  let saved = false
   try {
     store?.setItem(TRANSFER_PLAN_KEY, JSON.stringify(normalized))
+    saved = Boolean(store)
   } catch {
-    // 저장하지 못해도 이번 화면 동작은 그대로 이어진다.
+    // 저장소를 쓸 수 없어도 화면은 이어진다. 대신 저장 실패를 위로 알린다.
   }
-  return normalized
+  return { plans: normalized, saved }
 }
 
 export function clearTransferPlans() {
