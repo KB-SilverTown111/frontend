@@ -339,19 +339,100 @@ test('bill store uploads OCR data and confirms then executes a bill', async () =
     confirm: billsApi.confirm,
     execute: billsApi.execute,
   }
-  billsApi.ocr = async () => ({ billId: 'b-1', payee: '한국전력', amount: 48200 })
-  billsApi.confirm = async () => ({ billId: 'b-1', confirmationToken: 'token-1', executable: true })
-  billsApi.execute = async () => ({ paymentId: 'p-1', status: 'COMPLETED' })
+  billsApi.ocr = async () => ({
+    billId: 'b-1',
+    payee: '한국전력',
+    amount: 48200,
+    dueDate: '2026-09-10',
+  })
+  billsApi.confirm = async () => ({
+    billId: 'b-1',
+    status: 'CONFIRMED',
+    confirmationToken: 'token-1',
+    executable: true,
+  })
+  billsApi.execute = async () => ({
+    paymentId: 'p-1',
+    billId: 'b-1',
+    status: 'SUCCESS',
+    amount: 48200,
+    paidAt: '2026-09-08T15:12:00+09:00',
+  })
 
   try {
     const store = useBillStore()
     await store.upload({ image: new Blob(['bill'], { type: 'image/jpeg' }) })
-    await store.confirm({ approved: true })
+    await store.confirm({
+      approved: true,
+      confirmedPayee: '한국전력',
+      confirmedAmount: 48200,
+      confirmedDueDate: '2026-09-10',
+    })
     const result = await store.execute()
 
     assert.equal(store.billId, 'b-1')
     assert.equal(store.confirmationToken, 'token-1')
-    assert.equal(result.status, 'COMPLETED')
+    assert.equal(result.status, 'SUCCESS')
+    assert.equal(store.result.paymentId, 'p-1')
+  } finally {
+    Object.assign(billsApi, originals)
+  }
+})
+
+test('bill store validates and forwards the complete confirmation contract', async () => {
+  setup()
+  const originals = {
+    ocr: billsApi.ocr,
+    confirm: billsApi.confirm,
+  }
+  let capturedRequest
+  billsApi.ocr = async () => ({
+    billId: 'b-1',
+    payee: '한국전력',
+    amount: 48200,
+    dueDate: '2026-09-10',
+  })
+  billsApi.confirm = async (_billId, request) => {
+    capturedRequest = request
+    return {
+      billId: 'b-1',
+      status: 'CONFIRMED',
+      confirmationToken: 'token-1',
+      executable: true,
+    }
+  }
+
+  try {
+    const store = useBillStore()
+    const image = new Blob(['bill'], { type: 'image/jpeg' })
+    await store.upload({ image })
+
+    await assert.rejects(
+      () =>
+        store.confirm({
+          approved: true,
+          confirmedPayee: '',
+          confirmedAmount: 0,
+          confirmedDueDate: 'not-a-date',
+        }),
+      /납부처·금액·납부기한을 다시 확인해 주세요\./,
+    )
+    assert.equal(capturedRequest, undefined)
+
+    await store.confirm({
+      approved: true,
+      confirmedPayee: '한국전력',
+      confirmedAmount: 48200,
+      confirmedDueDate: '2026-09-10',
+    })
+    assert.deepEqual(capturedRequest, {
+      approved: true,
+      confirmedPayee: '한국전력',
+      confirmedAmount: 48200,
+      confirmedDueDate: '2026-09-10',
+    })
+    assert.equal(store.bill.status, 'CONFIRMED')
+    assert.equal(store.bill.executable, true)
   } finally {
     Object.assign(billsApi, originals)
   }
@@ -382,7 +463,7 @@ test('transfer risk clearance is scoped to a prepared transfer and execution ret
     executeCalls += 1
     executeKeys.push(options.idempotencyKey)
     if (executeCalls === 1) throw new Error('temporary failure')
-    return { status: 'COMPLETED' }
+    return { status: 'SUCCESS' }
   }
 
   try {

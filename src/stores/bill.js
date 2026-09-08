@@ -48,7 +48,8 @@ export const useBillStore = defineStore('bill', () => {
   }
 
   async function confirm(request) {
-    const response = await run(() => billsApi.confirm(billId.value, request))
+    const confirmationRequest = normalizeConfirmationRequest(request)
+    const response = await run(() => billsApi.confirm(billId.value, confirmationRequest))
     confirmationToken.value = response?.confirmationToken ?? ''
     bill.value = { ...bill.value, ...response }
     return response
@@ -81,6 +82,42 @@ export const useBillStore = defineStore('bill', () => {
 
   function resetExecutionKey() {
     executeIdempotencyKey.value = ''
+  }
+
+  function normalizeConfirmationRequest(request = {}) {
+    if (request.approved !== true) return request
+
+    const confirmedPayee = String(request.confirmedPayee ?? '').trim()
+    const confirmedAmount = Number(request.confirmedAmount)
+    const confirmedDueDate = String(request.confirmedDueDate ?? '').trim()
+
+    if (
+      !confirmedPayee ||
+      !Number.isSafeInteger(confirmedAmount) ||
+      confirmedAmount <= 0 ||
+      !isValidDateOnly(confirmedDueDate)
+    ) {
+      throw new Error('납부처·금액·납부기한을 다시 확인해 주세요.')
+    }
+
+    return {
+      ...request,
+      confirmedPayee,
+      confirmedAmount,
+      confirmedDueDate,
+    }
+  }
+
+  function isValidDateOnly(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(Date.UTC(year, month - 1, day))
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    )
   }
 
   return {
