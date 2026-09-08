@@ -397,13 +397,24 @@ const billDuplicateRows = computed(() => {
   const paid = billStore.result
   if (!paid && !billStore.bill) return []
 
-  return [
+  const rows = [
     { label: '상태', value: paid?.status === 'PAID' || billStore.alreadyPaid ? '완료' : '확인 중' },
-    { label: '결제 번호', value: billStore.paymentId || '확인 중' },
     { label: '납부 금액', value: formatCurrency(paid?.amount ?? billStore.bill?.amount) },
-    { label: '납부한 날', value: formatDate(paid?.paidAt) },
   ]
+
+  // 결제 번호와 납부 시각은 납부 응답에만 담겨 온다. 조회로는 받을 수 없으므로
+  // 이전에 끝난 납부는 값을 비워 두고 아래 안내 문구로 대신한다.
+  if (billStore.paymentId) rows.push({ label: '결제 번호', value: billStore.paymentId })
+  if (paid?.paidAt) rows.push({ label: '납부한 날', value: formatDate(paid.paidAt) })
+  return rows
 })
+
+/** 결제 번호를 모르는 경우에도 두 번 빠져나가지 않았다는 것은 분명히 알린다. */
+const billDuplicateNote = computed(() =>
+  billStore.paymentId
+    ? '돈이 두 번 빠져나가지 않았어요.'
+    : '이전에 납부가 끝난 고지서예요. 돈이 두 번 빠져나가지 않았어요.',
+)
 
 /** 3-16에서 읽어줄 문장. 금액과 기한을 사람이 듣기 쉬운 순서로 붙인다. */
 const billSpokenText = computed(() => {
@@ -2438,7 +2449,7 @@ onMounted(() => {
             v-if="billDuplicateRows.length"
             class="service-route-live-empty"
           >
-            돈이 두 번 빠져나가지 않았어요.
+            {{ billDuplicateNote }}
           </p>
         </section>
 
