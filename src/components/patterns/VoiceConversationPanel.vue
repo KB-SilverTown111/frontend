@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { useVoiceStore } from '@/stores/voice.js'
@@ -15,12 +16,26 @@ const props = defineProps({
   },
 })
 
+const router = useRouter()
 const voiceStore = useVoiceStore()
 
 const actionError = ref('')
 const showKeyboard = ref(false)
 const draft = ref('')
 const correctionHint = ref('')
+/** 카드의 기본 선택. 화면 표시일 뿐이며 승인해야 확정된다. */
+const focusedIndex = ref(0)
+const ending = ref(false)
+
+/**
+ * 합의된 무응답 규칙이다. 15초면 한 번 다시 안내하고, 다시 15초면 흐름을 취소한다.
+ * 서버 무응답 타이머는 일반 금융 세션만 대상이라 송금은 화면에서 잰다.
+ */
+const NO_RESPONSE_MS = 15_000
+const END_GUIDANCE_TIMEOUT_MS = 8_000
+
+let noResponseTimer = null
+let reannounced = false
 
 /**
  * 서버는 requiredSlot과 draftSummary를 스키마가 정해지지 않은 JSON으로 내려준다.
@@ -48,6 +63,8 @@ const CORRECTION_CHOICES = [
   { key: 'recipient', label: '이름 고치기', hint: '받는 분 이름만 말씀해 주세요.' },
   { key: 'amount', label: '금액 고치기', hint: '보내실 금액만 말씀해 주세요.' },
 ]
+
+const ORDINAL_LABELS = ['첫 번째', '두 번째', '세 번째', '네 번째', '다섯 번째']
 
 function formatSlotValue(key, value) {
   if (value === null || value === undefined || value === '') return '아직 없어요'
@@ -95,6 +112,97 @@ const isCorrectionScreen = computed(() => props.screenId === '2-25')
 const draftRows = computed(() => toRows(voiceStore.draftSummary))
 const requiredSlotRows = computed(() => toRows(voiceStore.requiredSlot))
 
+const isTransfer = computed(() => props.entryPoint === 'TRANSFER')
+const homeRoute = computed(() =>
+  isTransfer.value ? { name: 'transfer-home' } : { name: 'voice-home' },
+)
+
+const candidateCard = computed(() => voiceStore.selectableCard)
+const candidateItems = computed(() => voiceStore.cardItems)
+const isAmountCard = computed(() => candidateCard.value?.type === 'AMOUNT_RECONFIRM')
+const candidateHeading = computed(() =>
+  isAmountCard.value ? '보낼 금액을 골라주세요' : '받는 분을 골라주세요',
+)
+
+function candidateLabel(item) {
+  if (isAmountCard.value) {
+    const amount = Number(item?.amount)
+    return item?.label || (Number.isFinite(amount) ? `${amount.toLocaleString('ko-KR')}원` : '금액')
+  }
+
+  const parts = [item?.displayName || item?.name, item?.relationship, item?.accountNumberMasked]
+  return parts.filter(Boolean).join(' · ') || '받는 분'
+}
+
+function ordinalLabel(index) {
+  return ORDINAL_LABELS[index] ?? `${index + 1}번째`
+}
+
+function clearNoResponseTimer() {
+  if (noResponseTimer === null) return
+  clearTimeout(noResponseTimer)
+  noResponseTimer = null
+}
+
+function startNoResponseTimer() {
+  clearNoResponseTimer()
+  if (!isTransfer.value || ending.value) return
+  if (!voiceStore.sessionId || voiceStore.sessionClosed) return
+
+  noResponseTimer = setTimeout(() => {
+    noResponseTimer = null
+    if (!reannounced) {
+      reannounced = true
+      replay()
+      return
+    }
+    endByNoResponse()
+  }, NO_RESPONSE_MS)
+}
+
+/** 종료 안내를 끝까지 들려준 뒤 이동한다. 재생 중에 화면을 옮기면 안내가 잘린다. */
+async function waitForGuidanceEnd() {
+  await nextTick()
+  if (!voiceStore.speaking) return
+
+  await new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer)
+      unwatch()
+      resolve()
+    }
+    const timer = setTimeout(finish, END_GUIDANCE_TIMEOUT_MS)
+    const unwatch = watch(
+      () => voiceStore.speaking,
+      (speaking) => {
+        if (!speaking) finish()
+      },
+    )
+  })
+}
+
+async function leaveAfterGuidance() {
+  if (ending.value) return
+  ending.value = true
+  clearNoResponseTimer()
+
+  await waitForGuidanceEnd()
+  await voiceStore.closeSession().catch(() => {})
+  voiceStore.reset()
+  await router.push(homeRoute.value)
+}
+
+async function endByNoResponse() {
+  clearNoResponseTimer()
+
+  try {
+    await voiceStore.cancelCardFlow()
+  } catch {
+    // 취소할 카드가 없으면 안내 없이 세션만 정리한다.
+    await leaveAfterGuidance()
+  }
+}
+
 async function ensureSession() {
   if (voiceStore.sessionId) return
   // 음성 토큰은 재생 직전에 스토어가 알아서 받고 갱신한다.
@@ -134,6 +242,44 @@ async function submitDraft() {
   }
 }
 
+function focusCandidate(index) {
+  focusedIndex.value = index
+}
+
+/** 기본 선택만으로는 확정하지 않는다. 이 단추를 눌러야 서버가 승인한다. */
+async function confirmSelection() {
+  actionError.value = ''
+  const item = candidateItems.value[focusedIndex.value]
+  if (!item?.id) {
+    actionError.value = '고르신 항목을 찾지 못했어요. 다시 골라주세요.'
+    return
+  }
+
+  try {
+    await voiceStore.acceptCardSelection(item.id)
+  } catch (error) {
+    actionError.value = error?.message || '선택을 확인하지 못했어요. 다시 해주세요.'
+  }
+}
+
+async function rejectSelection() {
+  actionError.value = ''
+  try {
+    await voiceStore.rejectCardSelection()
+  } catch (error) {
+    actionError.value = error?.message || '다시 고를 수 없었어요.'
+  }
+}
+
+async function cancelFlow() {
+  actionError.value = ''
+  try {
+    await voiceStore.cancelCardFlow()
+  } catch (error) {
+    actionError.value = error?.message || '취소하지 못했어요.'
+  }
+}
+
 /** 2-25에서 틀린 항목만 골라 다시 말한다. 채워 넣는 판단은 서버가 한다. */
 function chooseCorrection(choice) {
   actionError.value = ''
@@ -148,6 +294,7 @@ function chooseCorrection(choice) {
 
 async function endConversation() {
   actionError.value = ''
+  clearNoResponseTimer()
   voiceStore.silence()
   if (!voiceStore.sessionId) return
 
@@ -165,10 +312,38 @@ watch(
   () => voiceStore.lastTurn,
   () => {
     correctionHint.value = ''
+    focusedIndex.value = 0
+    reannounced = false
+  },
+)
+
+watch(
+  () => voiceStore.listening,
+  (listening) => {
+    if (listening) clearNoResponseTimer()
+  },
+)
+
+watch(
+  () => voiceStore.speaking,
+  (speaking) => {
+    if (speaking) {
+      clearNoResponseTimer()
+      return
+    }
+    startNoResponseTimer()
+  },
+)
+
+watch(
+  () => voiceStore.flowCancelled,
+  (cancelled) => {
+    if (cancelled) leaveAfterGuidance()
   },
 )
 
 onBeforeUnmount(() => {
+  clearNoResponseTimer()
   voiceStore.silence()
 })
 </script>
@@ -206,6 +381,63 @@ onBeforeUnmount(() => {
     >
       이렇게 들었어요 — “{{ voiceStore.transcript }}”
     </p>
+
+    <div
+      v-if="candidateCard"
+      :aria-label="candidateHeading"
+      class="flex flex-col gap-3 rounded-2xl border p-4"
+      role="radiogroup"
+    >
+      <strong class="text-[15px]">{{ candidateHeading }}</strong>
+
+      <button
+        v-for="(item, index) in candidateItems"
+        :key="item.id"
+        :aria-checked="index === focusedIndex"
+        class="flex min-h-16 items-center justify-between gap-3 rounded-2xl border px-5 py-3 text-left text-lg"
+        :class="index === focusedIndex ? 'border-primary bg-muted font-bold' : ''"
+        :disabled="busy"
+        role="radio"
+        type="button"
+        @click="focusCandidate(index)"
+      >
+        <span>{{ ordinalLabel(index) }} · {{ candidateLabel(item) }}</span>
+        <b
+          v-if="index === focusedIndex"
+          aria-hidden="true"
+        >
+          ✓
+        </b>
+      </button>
+
+      <p class="text-[15px] leading-relaxed text-muted-foreground">
+        고르신 것이 맞으면 아래에서 한 번 더 확인해 주세요.
+      </p>
+
+      <Button
+        class="w-full"
+        :disabled="busy"
+        @click="confirmSelection"
+      >
+        이게 맞아요
+      </Button>
+      <Button
+        class="w-full"
+        :disabled="busy"
+        variant="secondary"
+        @click="rejectSelection"
+      >
+        아니에요, 다시 고를게요
+      </Button>
+      <Button
+        class="w-full"
+        :disabled="busy"
+        variant="ghost"
+        @click="cancelFlow"
+      >
+        돈 보내기 그만두기
+      </Button>
+    </div>
 
     <div
       v-if="requiredSlotRows.length"

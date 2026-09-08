@@ -115,11 +115,20 @@ export async function getCurrentLocation() {
   })
 }
 
+/** 권한 거부와 그 밖의 실패를 화면에서 구분할 수 있게 표식을 남긴다. */
+export const CONTACTS_PERMISSION_DENIED = 'CONTACTS_PERMISSION_DENIED'
+
+function contactsPermissionError() {
+  const error = new Error('연락처를 볼 수 있게 허용해 주시면 이름으로 찾아드려요.')
+  error.code = CONTACTS_PERMISSION_DENIED
+  return error
+}
+
 export async function getContactCandidates() {
   const permissions = await Contacts.checkPermissions()
   if (permissions.contacts !== 'granted') {
     const requested = await Contacts.requestPermissions()
-    if (requested.contacts !== 'granted') throw new Error('연락처 권한이 필요해요.')
+    if (requested.contacts !== 'granted') throw contactsPermissionError()
   }
 
   const { contacts } = await Contacts.getContacts({

@@ -14,6 +14,9 @@ import {
 /** Azure 토큰이 이 시간 안에 만료되면 재생 전에 새로 받는다. */
 const SPEECH_TOKEN_REFRESH_MARGIN_MS = 60_000
 
+/** 서버가 화면 조작을 허용하는 카드 종류다. */
+const SELECTABLE_CARD_TYPES = ['RECIPIENT_CANDIDATES', 'AMOUNT_RECONFIRM']
+
 const DEFAULT_VOICE_SETTINGS = {
   ttsVoice: 'ko-KR-JiMinNeural',
   speechRateMultiplier: 1.05,
@@ -44,6 +47,22 @@ export const useVoiceStore = defineStore('voice', () => {
   const nextAction = computed(() => lastTurn.value?.nextAction || '')
   const slots = computed(() => lastTurn.value?.slots ?? {})
   const sessionClosed = computed(() => ['CLOSED', 'EXPIRED'].includes(session.value?.status ?? ''))
+
+  const cardItems = computed(() => {
+    const items = displayCard.value?.items
+    return Array.isArray(items) ? items : []
+  })
+  /** 후보를 고르는 카드만 화면에서 조작한다. 읽어주기·위험 카드는 표시만 한다. */
+  const selectableCard = computed(() =>
+    SELECTABLE_CARD_TYPES.includes(displayCard.value?.type ?? '') && cardItems.value.length
+      ? displayCard.value
+      : null,
+  )
+  const focusedItemId = computed(() => displayCard.value?.focusedItemId ?? '')
+  /** 서버가 흐름을 끝냈다는 신호. 종료 안내를 읽고 홈으로 보낸다. */
+  const flowCancelled = computed(
+    () => currentStep.value === 'CANCELLED' || nextAction.value === 'END_SESSION',
+  )
 
   function toUserError(cause) {
     // axios 오류도 응답 없이 code와 message를 가진다. createSttError가 표식을 남긴
@@ -213,6 +232,63 @@ export const useVoiceStore = defineStore('voice', () => {
     })
   }
 
+  function selectionActionType(card) {
+    return card?.type === 'AMOUNT_RECONFIRM' ? 'SELECT_AMOUNT' : 'SELECT_RECIPIENT'
+  }
+
+  /**
+   * 카드 액션을 보낸다. 서버는 actionId로 멱등 처리하고 cardVersion이 어긋나면 거부한다.
+   * 응답은 턴과 같은 모양이라 기존 경로로 흘려 TTS까지 이어지게 한다.
+   */
+  async function sendUiAction(actionType, itemId = null) {
+    const card = displayCard.value
+    const sourceTurnId = lastTurn.value?.turnId
+
+    if (!card?.cardId || !sourceTurnId) {
+      error.value = toUserError({
+        isLocalError: true,
+        code: 'VOICE_CARD_MISSING',
+        message: '화면 정보를 찾지 못했어요. 다시 말씀해 주세요.',
+      })
+      throw error.value
+    }
+
+    silence()
+
+    const request = {
+      actionId: createTurnId(),
+      actionType,
+      cardId: card.cardId,
+      cardVersion: card.cardVersion,
+      sourceTurnId,
+    }
+    if (itemId) request.itemId = itemId
+
+    const response = await run(() => voiceApi.uiAction(sessionId.value, request))
+    return applyTurn({ ...response, turnId: response?.responseTurnId ?? sourceTurnId })
+  }
+
+  function selectCardItem(itemId) {
+    return sendUiAction(selectionActionType(displayCard.value), itemId)
+  }
+
+  /**
+   * 화면의 기본 선택은 확정이 아니다. 서버는 포커스가 없으면 승인을 거부하므로
+   * 먼저 선택을 보내 포커스를 만든 뒤 승인한다.
+   */
+  async function acceptCardSelection(itemId) {
+    if (itemId && itemId !== focusedItemId.value) await selectCardItem(itemId)
+    return sendUiAction('ACCEPT_FOCUSED_SELECTION')
+  }
+
+  function rejectCardSelection() {
+    return sendUiAction('REJECT_FOCUSED_SELECTION')
+  }
+
+  function cancelCardFlow() {
+    return sendUiAction('CANCEL_FLOW')
+  }
+
   async function sendEvent(request) {
     const response = await run(() => voiceApi.event(sessionId.value, request))
     lastEvent.value = response
@@ -315,12 +391,21 @@ export const useVoiceStore = defineStore('voice', () => {
     nextAction,
     slots,
     sessionClosed,
+    cardItems,
+    selectableCard,
+    focusedItemId,
+    flowCancelled,
     startSession,
     loadSession,
     sendTurn,
     listenAndSendTurn,
     sendTextTurn,
     sendEvent,
+    sendUiAction,
+    selectCardItem,
+    acceptCardSelection,
+    rejectCardSelection,
+    cancelCardFlow,
     replay,
     speakLatest,
     speakText,

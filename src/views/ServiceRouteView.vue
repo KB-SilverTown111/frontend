@@ -14,6 +14,7 @@ import {
 } from '@/services/productionServiceScreens.js'
 import {
   captureVideoFrame,
+  CONTACTS_PERMISSION_DENIED,
   getContactCandidates,
   getCurrentLocation,
   photoToBlob,
@@ -63,6 +64,7 @@ let billCameraStream = null
 let billCameraRequestId = 0
 const riskPurpose = ref('')
 const transferPin = ref('')
+const guardianCode = ref('')
 const recipientSearch = ref('')
 // Keep the legacy name for the hidden fallback input and existing route contracts.
 const recipientKeyword = recipientSearch
@@ -171,6 +173,13 @@ const showTransferFlow = computed(
 const TRANSFER_PIN_HELP_SCREENS = ['2-11', '2-13']
 const showTransferPinHelp = computed(
   () => service.value === 'transfer' && TRANSFER_PIN_HELP_SCREENS.includes(screenId.value),
+)
+/**
+ * 2-11은 화면 문구부터 "인증값 입력"으로 일반화돼 있다.
+ * 보호자 확인이 진행 중이면 인증번호를, 아니면 거래 승인 PIN을 받는다.
+ */
+const guardianPending = computed(
+  () => service.value === 'transfer' && Boolean(transferStore.guardianVerification),
 )
 const showRecipientSearch = computed(
   () => service.value === 'transfer' && ['2-05', '2-16'].includes(screenId.value),
@@ -297,6 +306,35 @@ const isBusy = computed(
     (isMobileBranchListScreen.value &&
       (mobileBranchLocationLoading.value || serviceData.loading.mobileBranches)),
 )
+/** 2-19는 어디까지 하셨는지 실제 초안 내용으로 보여준다. */
+const unfinishedTransferRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-19') return []
+
+  const prepared = transferStore.prepared
+  if (!prepared) return []
+
+  const recipient = prepared.recipient || transferStore.recipient || {}
+  return [
+    {
+      label: '받는 분',
+      value: recipient.displayName || recipient.name || transferStore.recipientName || '받는 분',
+    },
+    { label: '보내려던 금액', value: formatCurrency(prepared.amount ?? transferStore.amount) },
+  ]
+})
+
+/** 2-20은 돈이 나가지 않았음을 남은 잔액으로 확인시켜 준다. */
+const remainingBalanceRows = computed(() => {
+  if (service.value !== 'transfer' || screenId.value !== '2-20') return []
+
+  const account = transferStore.selectedAccount || serviceData.accounts[0]
+  if (!account) return []
+
+  return [
+    { label: '출금 계좌', value: account.accountName || account.accountType || '내 계좌' },
+    { label: '그대로 있는 잔액', value: formatCurrency(account.balance) },
+  ]
+})
 
 function planScheduleLabel(plan) {
   const repeat = plan?.repeat === 'ONCE' ? '이번 달' : '매달'
@@ -787,7 +825,17 @@ async function loadRecipients() {
   actionBusy.value = true
   actionError.value = ''
   try {
-    const contacts = await getContactCandidates().catch(() => [])
+    let contacts = []
+    try {
+      contacts = await getContactCandidates()
+    } catch (contactsError) {
+      // 권한 거부는 안내 화면으로 보내고, 그 밖의 실패는 직접 검색으로 이어간다.
+      if (contactsError?.code === CONTACTS_PERMISSION_DENIED) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-06' } })
+        return
+      }
+    }
+
     const found = await transferStore.findRecipients({ keyword, contacts: contacts.slice(0, 200) })
     if (!found.length) {
       throw new Error('받는 분을 찾지 못했어요. 이름이나 계좌 정보를 다시 확인해 주세요.')
@@ -1061,6 +1109,32 @@ async function handlePrimary() {
     }
     return
   }
+  if (
+    service.value === 'transfer' &&
+    screenId.value === '2-11' &&
+    transferStore.transferId &&
+    guardianPending.value
+  ) {
+    const code = guardianCode.value.trim()
+    if (!code) {
+      actionError.value = '보호자에게 온 번호를 입력해 주세요.'
+      return
+    }
+    try {
+      const verified = await transferStore.verifyGuardian(code)
+      guardianCode.value = ''
+      if (!verified?.verified) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+    } catch (error) {
+      guardianCode.value = ''
+      actionError.value = error.message
+      await go({ name: 'transfer-screen', params: { screenId: '2-13' } })
+    }
+    return
+  }
   if (service.value === 'transfer' && screenId.value === '2-11' && transferStore.transferId) {
     const pin = transferPin.value.trim()
     if (!/^\d{6}$/.test(pin)) {
@@ -1114,6 +1188,36 @@ async function handlePrimary() {
     // 약속은 알림까지만 한다. 실제 송금은 사용자가 평소 흐름으로 직접 진행한다.
     return go({ name: 'transfer-screen', params: { screenId: '2-02' } })
   }
+  if (service.value === 'transfer' && screenId.value === '2-19') {
+    if (!transferStore.transferId) {
+      transferStore.discardDraft()
+      return go(homeRoute.value)
+    }
+    // 초안이 이미 있으므로 계좌·금액을 다시 고르지 않고 최종 확인으로 간다.
+    return go({ name: 'transfer-screen', params: { screenId: '2-08' } })
+  }
+  if (service.value === 'transfer' && screenId.value === '2-21') {
+    transferStore.reset()
+    return go({ name: 'transfer-screen', params: { screenId: '2-02' } })
+  }
+  if (
+    service.value === 'transfer' &&
+    ['2-12', '2-13'].includes(screenId.value) &&
+    transferStore.transferId
+  ) {
+    try {
+      const started = await transferStore.startGuardianVerification()
+      guardianCode.value = ''
+      if (started?.deliveryFailureCode) {
+        actionError.value = '아직 보호자에게 메시지를 보내지 못했어요. 잠시 후 다시 해주세요.'
+        return
+      }
+      await go({ name: 'transfer-screen', params: { screenId: '2-11' } })
+    } catch (error) {
+      actionError.value = error.message
+    }
+    return
+  }
   if (service.value === 'transfer' && screenId.value === '2-22' && transferStore.transferId) {
     if (!transferStore.confirmationCompleted || !transferStore.authenticationCompleted) {
       actionError.value = '확인 절차가 끝나지 않았어요. 다시 확인해 주세요.'
@@ -1166,6 +1270,20 @@ async function handleSecondary() {
   if (service.value === 'transfer' && screenId.value === '2-31' && planTargetId.value) {
     transferPlanStore.removePlan(planTargetId.value)
     return go({ name: 'transfer-screen', params: { screenId: '2-27' } })
+  }
+  // "없던 일로 하기"는 화면만 넘기지 않고 남아 있던 초안을 실제로 되돌린다.
+  if (service.value === 'transfer' && screenId.value === '2-19') {
+    if (transferStore.transferId) await transferStore.cancel().catch(() => {})
+    transferStore.discardDraft()
+  }
+  // 보호자 확인 화면의 취소는 화면 이동만이 아니라 거래도 되돌린다.
+  if (
+    service.value === 'transfer' &&
+    ['2-12', '2-13'].includes(screenId.value) &&
+    transferStore.transferId
+  ) {
+    guardianCode.value = ''
+    await transferStore.cancel().catch(() => {})
   }
   return go(secondaryRoute.value)
 }
@@ -1223,7 +1341,35 @@ watch(
   },
   { immediate: true },
 )
+/** 2-20에서 보여줄 잔액이 없으면 계좌를 불러온다. */
+watch(
+  [service, screenId],
+  () => {
+    if (service.value !== 'transfer' || screenId.value !== '2-20') return
+    if (serviceData.accounts.length || serviceData.loading.accounts) return
+    serviceData.loadAccounts({ active: true }).catch(() => {})
+  },
+  { immediate: true },
+)
+/** 2-10에 들어오면 보호자에게 확인 요청을 보낸다. 발송 실패는 2-12에서 안내한다. */
+watch(
+  [service, screenId],
+  async () => {
+    if (service.value !== 'transfer' || screenId.value !== '2-10') return
+    if (!transferStore.transferId || transferStore.guardianVerification) return
 
+    try {
+      const started = await transferStore.startGuardianVerification()
+      if (started?.deliveryFailureCode) {
+        await go({ name: 'transfer-screen', params: { screenId: '2-12' } })
+      }
+    } catch (error) {
+      actionError.value = error?.message || '보호자에게 확인 요청을 보내지 못했어요.'
+      await go({ name: 'transfer-screen', params: { screenId: '2-12' } })
+    }
+  },
+  { immediate: true },
+)
 onBeforeUnmount(cleanupBillCamera)
 
 onMounted(() => {
@@ -1796,7 +1942,22 @@ onMounted(() => {
         </label>
 
         <label
-          v-if="service === 'transfer' && screenId === '2-11'"
+          v-if="service === 'transfer' && screenId === '2-11' && guardianPending"
+          class="service-route-input-field"
+        >
+          <span>보호자에게 온 인증번호</span>
+          <input
+            v-model="guardianCode"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            maxlength="12"
+            placeholder="받으신 번호를 그대로 적어주세요"
+            type="text"
+          />
+        </label>
+
+        <label
+          v-if="service === 'transfer' && screenId === '2-11' && !guardianPending"
           class="service-route-input-field"
         >
           <span>거래 승인 비밀번호</span>
@@ -1817,6 +1978,26 @@ onMounted(() => {
         >
           비밀번호를 아직 정하지 않으셨나요? 비밀번호 만들기
         </RouterLink>
+
+        <section
+          v-if="service === 'transfer' && screenId === '2-10' && guardianPending"
+          aria-label="보호자 확인 안내"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>보호자에게 확인 요청을 보냈어요</strong>
+          </div>
+          <p class="service-route-live-row">
+            보호자가 알려주는 번호를 아래에서 입력하시면 계속 보낼 수 있어요.
+          </p>
+          <RouterLink
+            class="service-route-pin-link"
+            :to="{ name: 'transfer-screen', params: { screenId: '2-11' } }"
+          >
+            인증번호 입력하기
+          </RouterLink>
+        </section>
 
         <TransferFlowPanel
           v-if="showTransferFlow"
@@ -1971,6 +2152,47 @@ onMounted(() => {
           <div class="service-route-live-rows">
             <div
               v-for="row in transferSummaryRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+        <section
+          v-if="unfinishedTransferRows.length"
+          aria-label="하시던 송금"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>여기까지 하셨어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in unfinishedTransferRows"
+              :key="row.label"
+              class="service-route-live-row"
+            >
+              <span>{{ row.label }}</span>
+              <b>{{ row.value }}</b>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="remainingBalanceRows.length"
+          aria-label="남은 잔액"
+          class="service-route-live-panel"
+          aria-live="polite"
+        >
+          <div class="service-route-live-heading">
+            <strong>계좌에서 빠져나간 금액이 없어요</strong>
+          </div>
+          <div class="service-route-live-rows">
+            <div
+              v-for="row in remainingBalanceRows"
               :key="row.label"
               class="service-route-live-row"
             >
