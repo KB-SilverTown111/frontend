@@ -4,7 +4,7 @@ import test from 'node:test'
 
 test('Android app theme colors are declared in the app resources', async () => {
   const colors = await readFile(
-    new URL('../android/app/src/main/res/values/colors.xml', import.meta.url),
+    new URL('../../../android/app/src/main/res/values/colors.xml', import.meta.url),
     'utf8',
   )
 

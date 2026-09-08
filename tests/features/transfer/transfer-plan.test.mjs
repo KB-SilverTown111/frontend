@@ -10,8 +10,8 @@ import {
   loadTransferPlans,
   normalizePlan,
   saveTransferPlans,
-} from '../src/services/transferPlanStorage.js'
-import { useTransferPlanStore } from '../src/stores/transferPlan.js'
+} from '../../../src/services/transferPlanStorage.js'
+import { useTransferPlanStore } from '../../../src/stores/transferPlan.js'
 
 /** 노드에는 localStorage가 없다. 시험할 동안만 심어둔다. */
 function useFakeStorage({ failOnWrite = false } = {}) {

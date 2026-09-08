@@ -6,13 +6,13 @@ import {
   CONSENT_DETAIL_SEQUENCE,
   CONSENT_FLOW_RETURN_SCREEN,
   getNextConsentScreen,
-} from '../src/features/onboarding/screens.js'
+} from '../../../src/features/onboarding/screens.js'
 import {
   getAdjacentStep,
   getOnboardingDisplayProgress,
   getOnboardingStep,
   ONBOARDING_STEPS,
-} from '../src/features/onboarding/steps.js'
+} from '../../../src/features/onboarding/steps.js'
 
 test('onboarding starts at the welcome screen and ends at completion', () => {
   assert.equal(ONBOARDING_STEPS[0].id, 'start')

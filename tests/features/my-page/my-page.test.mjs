@@ -2,22 +2,22 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { routes } from '../src/router/routes.js'
+import { routes } from '../../../src/router/routes.js'
 
 const readSource = (path) => {
   return readFileSync(new URL(path, import.meta.url), 'utf8')
 }
 
-const myPageSource = readSource('../src/views/MyPageView.vue')
-const fontSizeSource = readSource('../src/views/MyPageFontSizeView.vue')
-const transferHomeSource = readSource('../src/views/TransferHomeView.vue')
-const serviceHomeSource = readSource('../src/views/ServiceHomeView.vue')
-const routeViewSource = readSource('../src/views/ServiceRouteView.vue')
-const shellSource = readSource('../src/components/onboarding/OnboardingShell.vue')
-const onboardingSource = readSource('../src/views/OnboardingView.vue')
-const styleSource = readSource('../src/styles/onboarding.css')
-const globalStyleSource = readSource('../src/styles/globals.css')
-const transferStyleSource = readSource('../src/styles/transfer.css')
+const myPageSource = readSource('../../../src/views/MyPageView.vue')
+const fontSizeSource = readSource('../../../src/views/MyPageFontSizeView.vue')
+const transferHomeSource = readSource('../../../src/views/TransferHomeView.vue')
+const serviceHomeSource = readSource('../../../src/views/ServiceHomeView.vue')
+const routeViewSource = readSource('../../../src/views/ServiceRouteView.vue')
+const shellSource = readSource('../../../src/components/onboarding/OnboardingShell.vue')
+const onboardingSource = readSource('../../../src/views/OnboardingView.vue')
+const styleSource = readSource('../../../src/styles/onboarding.css')
+const globalStyleSource = readSource('../../../src/styles/globals.css')
+const transferStyleSource = readSource('../../../src/styles/transfer.css')
 
 test('my page has a production route and view', () => {
   const myPageRoute = routes.find(({ name }) => name === 'my-page')

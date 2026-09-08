@@ -5,7 +5,7 @@ import {
   arePermissionsGranted,
   NATIVE_PERMISSION_ORDER,
   requestPermissionsInOrder,
-} from '../src/features/onboarding/permissions.js'
+} from '../../../src/features/onboarding/permissions.js'
 
 test('granted and limited native permissions are treated as already available', () => {
   assert.equal(

@@ -2,16 +2,16 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { goBackOrReplace } from '../src/router/navigation.js'
+import { goBackOrReplace } from '../../src/router/navigation.js'
 
 const readSource = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
-const onboardingSource = readSource('../src/views/OnboardingView.vue')
-const helpSource = readSource('../src/views/OnboardingHelpView.vue')
-const fontSizeSource = readSource('../src/views/MyPageFontSizeView.vue')
-const serviceRouteSource = readSource('../src/views/ServiceRouteView.vue')
-const transferHomeSource = readSource('../src/views/TransferHomeView.vue')
-const serviceHomeSource = readSource('../src/views/ServiceHomeView.vue')
-const myPageSource = readSource('../src/views/MyPageView.vue')
+const onboardingSource = readSource('../../src/views/OnboardingView.vue')
+const helpSource = readSource('../../src/views/OnboardingHelpView.vue')
+const fontSizeSource = readSource('../../src/views/MyPageFontSizeView.vue')
+const serviceRouteSource = readSource('../../src/views/ServiceRouteView.vue')
+const transferHomeSource = readSource('../../src/views/TransferHomeView.vue')
+const serviceHomeSource = readSource('../../src/views/ServiceHomeView.vue')
+const myPageSource = readSource('../../src/views/MyPageView.vue')
 
 function createRouterMock(state) {
   const calls = []

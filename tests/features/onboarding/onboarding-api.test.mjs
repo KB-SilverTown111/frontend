@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { normalizeApiError } from '../src/api/errors.js'
-import { authApi } from '../src/api/auth.js'
-import { mockAuthApi } from '../src/api/mockAuth.js'
-import { selectOnboardingApi } from '../src/api/onboarding.js'
+import { normalizeApiError } from '../../../src/api/errors.js'
+import { authApi } from '../../../src/api/auth.js'
+import { mockAuthApi } from '../../../src/api/mockAuth.js'
+import { selectOnboardingApi } from '../../../src/api/onboarding.js'
 
 test('API errors preserve the shared error contract without exposing raw transport data', () => {
   const normalized = normalizeApiError({

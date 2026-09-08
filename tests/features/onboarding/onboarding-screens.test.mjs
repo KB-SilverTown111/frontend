@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import test from 'node:test'
 
-import { ONBOARDING_SCREEN_IDS, setConsentDecision } from '../src/features/onboarding/screens.js'
-import * as onboardingScreens from '../src/features/onboarding/screens.js'
-import { BANKS } from '../src/features/onboarding/banks.js'
+import { ONBOARDING_SCREEN_IDS, setConsentDecision } from '../../../src/features/onboarding/screens.js'
+import * as onboardingScreens from '../../../src/features/onboarding/screens.js'
+import { BANKS } from '../../../src/features/onboarding/banks.js'
 
 test('supported onboarding frames are represented as route-safe screens', () => {
   assert.deepEqual(ONBOARDING_SCREEN_IDS, [
@@ -89,7 +89,7 @@ test('every supplied bank has default and selected icon assets', () => {
   assert.equal(BANKS.length, 18)
 
   for (const bank of BANKS) {
-    assert.equal(existsSync(new URL(`../public${bank.defaultIcon}`, import.meta.url)), true)
-    assert.equal(existsSync(new URL(`../public${bank.selectedIcon}`, import.meta.url)), true)
+    assert.equal(existsSync(new URL(`../../../public${bank.defaultIcon}`, import.meta.url)), true)
+    assert.equal(existsSync(new URL(`../../../public${bank.selectedIcon}`, import.meta.url)), true)
   }
 })

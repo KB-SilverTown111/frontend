@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { apiClient } from '../src/api/client.js'
-import { accountsApi } from '../src/api/accounts.js'
-import { billsApi } from '../src/api/bills.js'
-import { mobileBranchesApi } from '../src/api/mobileBranches.js'
-import { remindersApi } from '../src/api/reminders.js'
-import { transfersApi } from '../src/api/transfers.js'
+import { apiClient } from '../../../src/api/client.js'
+import { accountsApi } from '../../../src/api/accounts.js'
+import { billsApi } from '../../../src/api/bills.js'
+import { mobileBranchesApi } from '../../../src/api/mobileBranches.js'
+import { remindersApi } from '../../../src/api/reminders.js'
+import { transfersApi } from '../../../src/api/transfers.js'
 
 function useAdapter(handler) {
   const originalAdapter = apiClient.defaults.adapter

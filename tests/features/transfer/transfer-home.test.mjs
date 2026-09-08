@@ -2,15 +2,15 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { routes } from '../src/router/routes.js'
+import { routes } from '../../../src/router/routes.js'
 
-const viewPath = new URL('../src/views/TransferHomeView.vue', import.meta.url)
+const viewPath = new URL('../../../src/views/TransferHomeView.vue', import.meta.url)
 const viewSource = existsSync(viewPath) ? readFileSync(viewPath, 'utf8') : ''
-const serviceHomePath = new URL('../src/views/ServiceHomeView.vue', import.meta.url)
+const serviceHomePath = new URL('../../../src/views/ServiceHomeView.vue', import.meta.url)
 const serviceHomeSource = existsSync(serviceHomePath) ? readFileSync(serviceHomePath, 'utf8') : ''
-const styleSource = readFileSync(new URL('../src/styles/transfer.css', import.meta.url), 'utf8')
+const styleSource = readFileSync(new URL('../../../src/styles/transfer.css', import.meta.url), 'utf8')
 const onboardingSource = readFileSync(
-  new URL('../src/views/OnboardingView.vue', import.meta.url),
+  new URL('../../../src/views/OnboardingView.vue', import.meta.url),
   'utf8',
 )
 

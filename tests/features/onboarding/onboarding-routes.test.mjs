@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { routes } from '../src/router/routes.js'
+import { routes } from '../../../src/router/routes.js'
 
 test('root entry opens the login screen', () => {
   const root = routes.find(({ path }) => path === '/')

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { captureVideoFrame, takeBillPhoto } from '../src/services/nativeCapabilities.js'
+import { captureVideoFrame, takeBillPhoto } from '../../src/services/nativeCapabilities.js'
 
 test('native bill capture requests camera permission and opens the native camera', async () => {
   const calls = []

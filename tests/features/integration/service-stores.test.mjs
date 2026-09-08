@@ -3,14 +3,14 @@ import test from 'node:test'
 
 import { createPinia, setActivePinia } from 'pinia'
 
-import { accountsApi } from '../src/api/accounts.js'
-import { billsApi } from '../src/api/bills.js'
-import { mobileBranchesApi } from '../src/api/mobileBranches.js'
-import { remindersApi } from '../src/api/reminders.js'
-import { transfersApi } from '../src/api/transfers.js'
-import { useBillStore } from '../src/stores/bill.js'
-import { useServiceDataStore } from '../src/stores/serviceData.js'
-import { useTransferStore } from '../src/stores/transfer.js'
+import { accountsApi } from '../../../src/api/accounts.js'
+import { billsApi } from '../../../src/api/bills.js'
+import { mobileBranchesApi } from '../../../src/api/mobileBranches.js'
+import { remindersApi } from '../../../src/api/reminders.js'
+import { transfersApi } from '../../../src/api/transfers.js'
+import { useBillStore } from '../../../src/stores/bill.js'
+import { useServiceDataStore } from '../../../src/stores/serviceData.js'
+import { useTransferStore } from '../../../src/stores/transfer.js'
 
 function setup() {
   setActivePinia(createPinia())

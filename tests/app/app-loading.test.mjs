@@ -3,23 +3,23 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-const loadingModuleUrl = new URL('../src/services/appLoading.js', import.meta.url)
+const loadingModuleUrl = new URL('../../src/services/appLoading.js', import.meta.url)
 const loadingModulePath = fileURLToPath(loadingModuleUrl)
 const overlayPath = fileURLToPath(
-  new URL('../src/components/AppLoadingOverlay.vue', import.meta.url),
+  new URL('../../src/components/AppLoadingOverlay.vue', import.meta.url),
 )
-const appSource = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
-const routerSource = readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
+const appSource = readFileSync(new URL('../../src/App.vue', import.meta.url), 'utf8')
+const routerSource = readFileSync(new URL('../../src/router/index.js', import.meta.url), 'utf8')
 const routeViewSource = readFileSync(
-  new URL('../src/views/ServiceRouteView.vue', import.meta.url),
+  new URL('../../src/views/ServiceRouteView.vue', import.meta.url),
   'utf8',
 )
 const serviceHomeSource = readFileSync(
-  new URL('../src/views/ServiceHomeView.vue', import.meta.url),
+  new URL('../../src/views/ServiceHomeView.vue', import.meta.url),
   'utf8',
 )
 const transferHomeSource = readFileSync(
-  new URL('../src/views/TransferHomeView.vue', import.meta.url),
+  new URL('../../src/views/TransferHomeView.vue', import.meta.url),
   'utf8',
 )
 

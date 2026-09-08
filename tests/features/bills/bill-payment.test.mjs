@@ -3,15 +3,15 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const routeSource = readFileSync(
-  new URL('../src/views/ServiceRouteView.vue', import.meta.url),
+  new URL('../../../src/views/ServiceRouteView.vue', import.meta.url),
   'utf8',
 )
 const homeSource = readFileSync(
-  new URL('../src/views/ServiceHomeView.vue', import.meta.url),
+  new URL('../../../src/views/ServiceHomeView.vue', import.meta.url),
   'utf8',
 )
 const billScreenSource = readFileSync(
-  new URL('../src/services/screenData/bills.js', import.meta.url),
+  new URL('../../../src/services/screenData/bills.js', import.meta.url),
   'utf8',
 )
 const successScreenSource = billScreenSource.slice(

@@ -4,7 +4,7 @@ import test from 'node:test'
 
 async function readOnboardingView() {
   return (
-    await readFile(new URL('../src/views/OnboardingView.vue', import.meta.url), 'utf8')
+    await readFile(new URL('../../../src/views/OnboardingView.vue', import.meta.url), 'utf8')
   ).replace(/\r\n/g, '\n')
 }
 
@@ -57,7 +57,7 @@ test('required consent detail screens do not render guidance cards', async () =>
 
 test('onboarding shell does not render question-mark help controls', async () => {
   const shell = await readFile(
-    new URL('../src/components/onboarding/OnboardingShell.vue', import.meta.url),
+    new URL('../../../src/components/onboarding/OnboardingShell.vue', import.meta.url),
     'utf8',
   )
   const view = await readOnboardingView()
@@ -75,7 +75,7 @@ test('login is an entry screen without a back button', async () => {
 
 test('login opens a separate font size setting screen from a summary card', async () => {
   const view = await readOnboardingView()
-  const service = await readFile(new URL('../src/services/fontScale.js', import.meta.url), 'utf8')
+  const service = await readFile(new URL('../../../src/services/fontScale.js', import.meta.url), 'utf8')
 
   assert.match(view, /class="my-page-card login-font-size-card"/)
   assert.match(view, /:to="\{ name: 'font-size' \}"/)
@@ -102,11 +102,11 @@ test('start screen shows back navigation to login', async () => {
 test('onboarding shell receives a readable progress indicator', async () => {
   const view = await readOnboardingView()
   const shell = await readFile(
-    new URL('../src/components/onboarding/OnboardingShell.vue', import.meta.url),
+    new URL('../../../src/components/onboarding/OnboardingShell.vue', import.meta.url),
     'utf8',
   )
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
 
@@ -119,7 +119,7 @@ test('onboarding shell receives a readable progress indicator', async () => {
 
 test('onboarding choice cards stack one item per row', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
   const segmentGrid = styleSource.match(/\.segment-grid\s*\{([\s\S]*?)\}/)?.[1]
@@ -130,7 +130,7 @@ test('onboarding choice cards stack one item per row', async () => {
 
 test('onboarding cards use a thicker visible border', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
 
@@ -148,7 +148,7 @@ test('onboarding cards use a thicker visible border', async () => {
 test('onboarding surfaces do not render guidance cards', async () => {
   const view = await readOnboardingView()
   const help = await readFile(
-    new URL('../src/views/OnboardingHelpView.vue', import.meta.url),
+    new URL('../../../src/views/OnboardingHelpView.vue', import.meta.url),
     'utf8',
   )
 
@@ -181,7 +181,7 @@ test('account number input is visible while retaining a numeric keyboard hint', 
 
 test('account input uses its card as the focus indicator without native decoration', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
   const inputBlock = styleSource.match(/\.input-segment input\s*\{([\s\S]*?)\}/)?.[1]
@@ -200,7 +200,7 @@ test('account input uses its card as the focus indicator without native decorati
 
 test('onboarding action buttons use the senior-readable type scale', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
   const actionButtonBlock = styleSource.match(
@@ -214,7 +214,7 @@ test('onboarding action buttons use the senior-readable type scale', async () =>
 
 test('onboarding supporting text keeps a readable scale below the action buttons', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
 
@@ -238,11 +238,11 @@ test('onboarding supporting text keeps a readable scale below the action buttons
 
 test('mobile app chrome reserves space around system bars', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
   const transferStyleSource = await readFile(
-    new URL('../src/styles/transfer.css', import.meta.url),
+    new URL('../../../src/styles/transfer.css', import.meta.url),
     'utf8',
   )
   const mobileStyles = styleSource.slice(styleSource.indexOf('@media (max-width: 430px)'))
@@ -275,7 +275,7 @@ test('mobile app chrome reserves space around system bars', async () => {
 
 test('postcode overlay is contained by the scrollable app content', async () => {
   const styleSource = await readFile(
-    new URL('../src/styles/onboarding.css', import.meta.url),
+    new URL('../../../src/styles/onboarding.css', import.meta.url),
     'utf8',
   )
   const appMain = styleSource.match(/\.app-main\s*\{([\s\S]*?)\}/)?.[1]

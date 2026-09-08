@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { clearAuthSession, loadAuthSession, saveAuthSession } from '../src/api/authStorage.js'
+import { clearAuthSession, loadAuthSession, saveAuthSession } from '../../../src/api/authStorage.js'
 
-const authStorageUrl = new URL('../src/api/authStorage.js', import.meta.url)
+const authStorageUrl = new URL('../../../src/api/authStorage.js', import.meta.url)
 
 const session = {
   accessToken: 'access-token',

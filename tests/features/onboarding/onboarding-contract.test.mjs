@@ -11,7 +11,7 @@ import {
   parseAuthResponse,
   parseVoiceSettingsResponse,
   validateStep,
-} from '../src/features/onboarding/contract.js'
+} from '../../../src/features/onboarding/contract.js'
 
 function completeDraft() {
   return {

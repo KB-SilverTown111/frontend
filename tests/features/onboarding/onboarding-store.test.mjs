@@ -6,13 +6,13 @@ import { createPinia, setActivePinia } from 'pinia'
 import { Capacitor } from '@capacitor/core'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 
-import { clearAuthSession, loadAuthSession, saveAuthSession } from '../src/api/authStorage.js'
-import { onboardingApi } from '../src/api/onboarding.js'
-import { useBillStore } from '../src/stores/bill.js'
-import { useOnboardingStore } from '../src/stores/onboarding.js'
-import { useServiceDataStore } from '../src/stores/serviceData.js'
-import { useTransferStore } from '../src/stores/transfer.js'
-import { useVoiceStore } from '../src/stores/voice.js'
+import { clearAuthSession, loadAuthSession, saveAuthSession } from '../../../src/api/authStorage.js'
+import { onboardingApi } from '../../../src/api/onboarding.js'
+import { useBillStore } from '../../../src/stores/bill.js'
+import { useOnboardingStore } from '../../../src/stores/onboarding.js'
+import { useServiceDataStore } from '../../../src/stores/serviceData.js'
+import { useTransferStore } from '../../../src/stores/transfer.js'
+import { useVoiceStore } from '../../../src/stores/voice.js'
 
 test('store persists the signup auth session without a follow-up voice settings request', async () => {
   setActivePinia(createPinia())

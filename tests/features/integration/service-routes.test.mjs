@@ -2,45 +2,45 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { routes } from '../src/router/routes.js'
+import { routes } from '../../../src/router/routes.js'
 import {
   getProductionActionRoutes,
   loadProductionScreen,
   productionServiceScreens,
   resolveProductionScreen,
-} from '../src/services/productionServiceScreens.js'
+} from '../../../src/services/productionServiceScreens.js'
 import {
   mobileBranchSchedule,
   mobileBranchDocuments,
   mobileBranchServices,
-} from '../src/services/mobileBranchPresentation.js'
+} from '../../../src/services/mobileBranchPresentation.js'
 
 const serviceHomeSource = readFileSync(
-  new URL('../src/views/ServiceHomeView.vue', import.meta.url),
+  new URL('../../../src/views/ServiceHomeView.vue', import.meta.url),
   'utf8',
 )
 const transferHomeSource = readFileSync(
-  new URL('../src/views/TransferHomeView.vue', import.meta.url),
+  new URL('../../../src/views/TransferHomeView.vue', import.meta.url),
   'utf8',
 )
 const routeViewSource = readFileSync(
-  new URL('../src/views/ServiceRouteView.vue', import.meta.url),
+  new URL('../../../src/views/ServiceRouteView.vue', import.meta.url),
   'utf8',
 )
 const transferFlowPanelSource = readFileSync(
-  new URL('../src/components/patterns/TransferFlowPanel.vue', import.meta.url),
+  new URL('../../../src/components/patterns/TransferFlowPanel.vue', import.meta.url),
   'utf8',
 )
 const mobileBranchPresentationSource = readFileSync(
-  new URL('../src/services/mobileBranchPresentation.js', import.meta.url),
+  new URL('../../../src/services/mobileBranchPresentation.js', import.meta.url),
   'utf8',
 )
 const serviceStyleSource = readFileSync(
-  new URL('../src/styles/transfer.css', import.meta.url),
+  new URL('../../../src/styles/transfer.css', import.meta.url),
   'utf8',
 )
 const screenContentStyleSource = readFileSync(
-  new URL('../src/styles/screen-content.css', import.meta.url),
+  new URL('../../../src/styles/screen-content.css', import.meta.url),
   'utf8',
 )
 
