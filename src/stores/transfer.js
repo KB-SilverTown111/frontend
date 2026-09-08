@@ -23,6 +23,7 @@ export const useTransferStore = defineStore('transfer', () => {
   const confirmation = ref(null)
   const authentication = ref(null)
   const validation = ref(null)
+  const guardianVerification = ref(null)
   const result = ref(null)
   const riskCleared = ref(false)
   const confirmationCompleted = ref(false)
@@ -51,6 +52,18 @@ export const useTransferStore = defineStore('transfer', () => {
   )
   const executable = computed(() => Boolean(confirmation.value?.executable))
   const authenticated = computed(() => Boolean(authentication.value?.authenticated))
+  const guardianVerified = computed(() => Boolean(guardianVerification.value?.verified))
+  /** 서버가 보호자에게 메시지를 보내지 못한 경우다. 화면 2-12로 보낸다. */
+  const guardianDeliveryFailed = computed(() =>
+    Boolean(guardianVerification.value?.deliveryFailureCode),
+  )
+  /** 유효시간이 지난 인증이다. 화면 2-13에서 불일치와 구분해 안내한다. */
+  const guardianExpired = computed(() => {
+    if (guardianVerified.value) return false
+
+    const expiresAt = Date.parse(guardianVerification.value?.expiresAt ?? '')
+    return Number.isFinite(expiresAt) && expiresAt <= Date.now()
+  })
   const amountReconfirmRequired = computed(() =>
     Boolean(validation.value?.amountReconfirmRequired ?? prepared.value?.amountReconfirmRequired),
   )
@@ -142,6 +155,7 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   function resetFinancialExecutionState() {
+    guardianVerification.value = null
     riskCleared.value = false
     confirmationCompleted.value = false
     authenticationCompleted.value = false
@@ -214,6 +228,33 @@ export const useTransferStore = defineStore('transfer', () => {
     return run(() => transfersApi.setPin({ pin: value }))
   }
 
+  /**
+   * 보호자에게 인증번호 발송을 요청한다.
+   * 발송 실패는 예외가 아니라 응답의 deliveryFailureCode로 온다.
+   */
+  async function startGuardianVerification() {
+    if (!transferId.value) throw new Error('송금 정보를 다시 확인해 주세요.')
+
+    const response = await run(() => transfersApi.startGuardianVerification(transferId.value))
+    guardianVerification.value = response
+    return response
+  }
+
+  /** 보호자 인증번호 확인. 입력값은 보관하지 않고 결과만 남긴다. */
+  async function verifyGuardian(code) {
+    const value = String(code ?? '').trim()
+    if (!value) throw new Error('보호자에게 온 번호를 입력해 주세요.')
+
+    const verificationId = guardianVerification.value?.verificationId
+    if (!verificationId) throw new Error('먼저 보호자에게 인증 요청을 보내주세요.')
+
+    const response = await run(() =>
+      transfersApi.verifyGuardian(transferId.value, verificationId, { code: value }),
+    )
+    guardianVerification.value = { ...guardianVerification.value, ...response }
+    return response
+  }
+
   function localError(code, message) {
     return normalizeApiError({ response: { data: { code, message } } })
   }
@@ -229,6 +270,11 @@ export const useTransferStore = defineStore('transfer', () => {
     }
     if (!authenticated.value) {
       error.value = localError('TRANSFER_NOT_AUTHENTICATED', '비밀번호 확인이 필요해요.')
+      throw error.value
+    }
+    // 보호자 확인을 시작한 송금은 확인이 끝나기 전에 실행하지 않는다.
+    if (guardianVerification.value && !guardianVerified.value) {
+      error.value = localError('TRANSFER_GUARDIAN_NOT_VERIFIED', '보호자 확인이 끝나지 않았어요.')
       throw error.value
     }
     if (!executeIdempotencyKey.value) {
@@ -317,6 +363,7 @@ export const useTransferStore = defineStore('transfer', () => {
     confirmation.value = null
     authentication.value = null
     validation.value = null
+    guardianVerification.value = null
     result.value = null
     resetFinancialExecutionState()
     error.value = null
@@ -335,6 +382,7 @@ export const useTransferStore = defineStore('transfer', () => {
     confirmation,
     authentication,
     validation,
+    guardianVerification,
     result,
     riskCleared,
     confirmationCompleted,
@@ -349,6 +397,9 @@ export const useTransferStore = defineStore('transfer', () => {
     executable,
     authenticated,
     amountReconfirmRequired,
+    guardianVerified,
+    guardianDeliveryFailed,
+    guardianExpired,
     readyToPrepare,
     startSession,
     findRecipients,
@@ -362,6 +413,8 @@ export const useTransferStore = defineStore('transfer', () => {
     confirm,
     authenticate,
     registerPin,
+    startGuardianVerification,
+    verifyGuardian,
     execute,
     restoreDraft,
     discardDraft,
