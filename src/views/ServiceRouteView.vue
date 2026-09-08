@@ -627,7 +627,13 @@ async function loadContext(currentService, currentScreenId) {
   if (currentService === 'transfer' && currentScreenId === '2-02') {
     transferStore.reset()
     // 비운 뒤에 심어야 한다. 약속에서 시작한 송금만 이 값을 갖는다.
-    if (planTargetId.value) transferStore.setPlanId(planTargetId.value)
+    if (planTargetId.value) {
+      transferStore.setPlanId(planTargetId.value)
+      // 쿼리를 지워야 새로고침이나 뒤로 가기로 예약 ID가 되살아나지 않는다.
+      const planQuery = { ...route.query }
+      delete planQuery.planId
+      await router.replace({ query: planQuery })
+    }
     recipientKeyword.value = ''
     transferAmountInput.value = ''
   }
@@ -1234,8 +1240,10 @@ async function handlePrimary() {
       const executed = await transferStore.execute()
       // 실제로 보내진 경우에만 약속에 기록한다. 실패하면 다시 보낼 수 있어야 한다.
       if (executed?.status === 'SUCCESS' && transferStore.planId) {
-        transferPlanStore.markSent(transferStore.planId)
-        transferStore.clearPlanId()
+        // 저장까지 성공한 경우에만 정리한다. 실패하면 다음 기회에 다시 기록한다.
+        if (transferPlanStore.markSent(transferStore.planId)) {
+          transferStore.clearPlanId()
+        }
       }
       await go({
         name: 'transfer-screen',
