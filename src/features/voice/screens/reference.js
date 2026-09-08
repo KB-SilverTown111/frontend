@@ -1,0 +1,98 @@
+export default [
+  {
+    key: 'voice-voice-select',
+    title: '목소리 고르기',
+    description: '목소리와 말하기 속도를 직접 정합니다.',
+    contentHtml:
+      '<div class="choices"><div class="choice active"><span>낮은 남성 목소리</span><i>✓</i></div><div class="choice "><span>여성 목소리</span><i></i></div></div><div class="field"><span>말하기 속도</span><b>조금 느리게</b></div><div class="field"><span>목소리 높낮이</span><b>보통</b></div><div class="note"><b>안내</b><span>낮고 또렷한 목소리가 듣기 편해요.</span></div>',
+    primaryLabel: '미리 들어보기',
+    secondaryLabel: '기본값으로',
+    variant: 'default',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-voice-preview',
+    title: '미리 듣기',
+    description: '고른 목소리로 들어보고 저장합니다.',
+    contentHtml:
+      '<div class="voice"><span class="glow g1"></span><span class="glow g2"></span><div class="mic-wrap"><span class="pulse p1"></span><span class="pulse p2"></span><span class="mic"><span class="mic-body"></span><span class="mic-stem"></span></span></div><div class="wave"><i style="height:12px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:46px"></i><i style="height:28px"></i><i style="height:54px"></i><i style="height:64px"></i><i style="height:42px"></i><i style="height:58px"></i><i style="height:36px"></i><i style="height:50px"></i><i style="height:24px"></i><i style="height:38px"></i><i style="height:18px"></i><i style="height:12px"></i></div><p class="vstat"><span class="live"></span>들려드리는 중</p></div><div class="stt done"><div class="stt-head"><span class="stt-dot"></span>이렇게 들려요</div><p class="stt-text">김영희 님께 오만원을 보냅니다</p></div>',
+    primaryLabel: '이 목소리로 저장',
+    secondaryLabel: '다시 고르기',
+    variant: 'default',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-replay',
+    title: '다시 들려드릴까요',
+    description: '방금 안내를 처음부터 다시 읽어드립니다.',
+    contentHtml:
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>놓치셨어도 괜찮아요</strong><p>몇 번이든 다시 들으실 수 있어요.</p></div></section><div class="meta"><span>마지막 안내</span><b>30초 전</b></div>',
+    primaryLabel: '다시 듣기',
+    secondaryLabel: '그만 듣기',
+    variant: 'default',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-ended',
+    title: '음성 안내 종료',
+    description: '음성 대화를 끝내고 화면만 사용합니다.',
+    contentHtml:
+      '<section class="hero warn"><div class="hero-icon">!</div><div><strong>음성 안내를 껐어요</strong><p>언제든 마이크 단추로 다시 켤 수 있어요.</p></div></section><div class="note"><b>안내</b><span>진행 중이던 내용은 그대로 남아 있어요.</span></div>',
+    primaryLabel: '화면으로 계속하기',
+    secondaryLabel: '음성 다시 켜기',
+    variant: 'warning',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-resume',
+    title: '이어서 하시겠어요',
+    description: '중단된 음성 대화를 그대로 이어갑니다.',
+    contentHtml:
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>아까 하시던 것이 있어요</strong><p>“김영희에게 오만원 보내줘”까지 진행했어요.</p></div></section><div class="choices"><div class="choice active"><span>이어서 하기</span><i>✓</i></div><div class="choice "><span>처음부터</span><i></i></div></div>',
+    primaryLabel: '이어서 하기',
+    secondaryLabel: '처음부터 다시',
+    variant: 'default',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-expired',
+    title: '시간이 지났어요',
+    description: '안전을 위해 음성 대화를 닫았습니다.',
+    contentHtml:
+      '<section class="hero warn"><div class="hero-icon">!</div><div><strong>5분 동안 말씀이 없으셨어요</strong><p>처음부터 다시 시작해 주세요.</p></div></section><div class="note"><b>안내</b><span>입력하신 내용은 저장되지 않았어요.</span></div>',
+    primaryLabel: '다시 시작하기',
+    secondaryLabel: '홈으로',
+    variant: 'warning',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-bill-reading',
+    title: '고지서 읽어드리는 중',
+    description: '고지서 내용을 음성으로 안내합니다.',
+    contentHtml:
+      '<div class="voice"><span class="glow g1"></span><span class="glow g2"></span><div class="mic-wrap"><span class="pulse p1"></span><span class="pulse p2"></span><span class="mic"><span class="mic-body"></span><span class="mic-stem"></span></span></div><div class="wave"><i style="height:12px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:46px"></i><i style="height:28px"></i><i style="height:54px"></i><i style="height:64px"></i><i style="height:42px"></i><i style="height:58px"></i><i style="height:36px"></i><i style="height:50px"></i><i style="height:24px"></i><i style="height:38px"></i><i style="height:18px"></i><i style="height:12px"></i></div><p class="vstat"><span class="live"></span>읽어드리는 중</p></div><div class="meta"><span>읽는 중</span><b>2 / 4번째 항목</b></div>',
+    primaryLabel: '다시 듣기',
+    secondaryLabel: '음성 끄기',
+    variant: 'default',
+    showHelp: true,
+    showTabs: false,
+  },
+  {
+    key: 'voice-enabled',
+    title: '음성 명령 켜짐',
+    description: '생활금융에서도 말로 조작할 수 있습니다.',
+    contentHtml:
+      '<section class="hero "><div class="hero-icon">✓</div><div><strong>말씀해 보세요</strong><p>“알림 보여줘”, “이동점포 찾아줘”</p></div></section><div class="choices"><div class="choice active"><span>음성 명령 켜기</span><i>✓</i></div><div class="choice "><span>끄기</span><i></i></div></div><div class="note"><b>안내</b><span>화면 단추로도 똑같이 할 수 있어요.</span></div>',
+    primaryLabel: '음성으로 말하기',
+    secondaryLabel: '닫기',
+    variant: 'default',
+    showHelp: true,
+    showTabs: false,
+  },
+]

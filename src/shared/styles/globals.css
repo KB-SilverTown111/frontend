@@ -1,0 +1,102 @@
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/PretendardVariable.woff2') format('woff2-variations');
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: #fff5d0;
+  --foreground: #173f52;
+  --card: #ffffff;
+  --card-foreground: #173f52;
+  --primary: #8ebd9d;
+  --primary-foreground: #143d2e;
+  --secondary: #ffffff;
+  --secondary-foreground: #173f52;
+  --muted: #e5f1e8;
+  --muted-foreground: #526a75;
+  --accent: #f4d564;
+  --accent-foreground: #6a5a18;
+  --destructive: #c84f47;
+  --border: #e2dcc3;
+  --input: #e2dcc3;
+  --ring: #8ebd9d;
+  --radius: 0.875rem;
+  --card-border-width: 2px;
+  --card-min-height: 72px;
+  --font-size-title: 30px;
+  --font-size-body: 19px;
+  --font-size-action: 24px;
+  --font-size-display: 36px;
+  --font-size-nav: 16px;
+  --touch-target-min: 64px;
+}
+
+:root[data-font-scale='large'] {
+  --font-size-title: 34px;
+  --font-size-body: 21px;
+  --font-size-action: 28px;
+  --font-size-display: 40px;
+  --font-size-nav: 18px;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  font-family: 'Pretendard Variable', Pretendard, sans-serif;
+  color: var(--foreground);
+  background: var(--background);
+  word-break: keep-all;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 45%, transparent);
+  outline-offset: 2px;
+}
+
+input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+}

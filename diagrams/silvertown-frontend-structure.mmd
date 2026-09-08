@@ -1,0 +1,25 @@
+%% SilverTown frontend - top-level architecture
+graph TD
+  SRC["src"]
+
+  SRC --> APP["app<br/>앱 시작 · 라우터 · 전역 초기화"]
+  SRC --> SHARED["shared<br/>공통 UI · API client · native · utils"]
+  SRC --> FEATURES["features<br/>업무 기능 단위"]
+
+  FEATURES --> AUTH["auth<br/>인증 · 세션"]
+  FEATURES --> ONBOARDING["onboarding<br/>회원가입 · 권한"]
+  FEATURES --> TRANSFER["transfer<br/>송금 · 예약송금"]
+  FEATURES --> BILLS["bills<br/>고지서 OCR · 납부"]
+  FEATURES --> LIVING["living<br/>알림 · 이동점포"]
+  FEATURES --> VOICE["voice<br/>STT · TTS · 음성 세션"]
+  FEATURES --> MYPAGE["my-page<br/>내 정보 · 설정"]
+
+  VOICE -. "공개 API로 사용" .-> TRANSFER
+  VOICE -. "공개 API로 사용" .-> BILLS
+
+  classDef root fill:#17324d,color:#fff,stroke:#17324d;
+  classDef layer fill:#e8f1f8,stroke:#4f81a8,color:#17324d;
+  classDef feature fill:#fff7e6,stroke:#d99a2b,color:#5b3b00;
+  class SRC root;
+  class APP,SHARED,FEATURES layer;
+  class AUTH,ONBOARDING,TRANSFER,BILLS,LIVING,VOICE,MYPAGE feature;
