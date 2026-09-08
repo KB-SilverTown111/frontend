@@ -48,9 +48,11 @@ export const useTransferPlanStore = defineStore('transferPlan', () => {
     return plan ? isSentThisMonth(plan) : false
   }
 
+  /** 저장에 실패하면 메모리에만 남는다. 호출하는 쪽이 그걸 알아야 한다. */
   function persist() {
-    plans.value = saveTransferPlans(plans.value)
-    return plans.value
+    const { plans: saved, saved: stored } = saveTransferPlans(plans.value)
+    plans.value = saved
+    return stored
   }
 
   /** 저장할 수 없는 값이면 화면에 그대로 보여줄 문구를 남긴다. */
@@ -70,7 +72,10 @@ export const useTransferPlanStore = defineStore('transferPlan', () => {
     if (!plan) return null
 
     plans.value = [...plans.value, plan]
-    persist()
+    if (!persist()) {
+      error.value = '기록을 저장하지 못했어요. 잠시 후 다시 확인해 주세요.'
+      return null
+    }
     return plan
   }
 
@@ -86,7 +91,10 @@ export const useTransferPlanStore = defineStore('transferPlan', () => {
     if (!plan) return null
 
     plans.value = plans.value.map((item) => (item.id === plan.id ? plan : item))
-    persist()
+    if (!persist()) {
+      error.value = '기록을 저장하지 못했어요. 잠시 후 다시 확인해 주세요.'
+      return null
+    }
     return plan
   }
 

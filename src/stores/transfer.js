@@ -24,6 +24,11 @@ export const useTransferStore = defineStore('transfer', () => {
   const authentication = ref(null)
   const validation = ref(null)
   const guardianVerification = ref(null)
+  /**
+   * 이 송금이 어느 정기 약속에서 시작했는지.
+   * 실행이 끝난 뒤 그 약속에 보낸 날짜를 기록하는 데만 쓴다.
+   */
+  const planId = ref('')
   const result = ref(null)
   const riskCleared = ref(false)
   const confirmationCompleted = ref(false)
@@ -255,6 +260,15 @@ export const useTransferStore = defineStore('transfer', () => {
     return response
   }
 
+  /** 정기 약속에서 시작한 송금임을 표시한다. 일반 송금은 부르지 않는다. */
+  function setPlanId(value) {
+    planId.value = String(value ?? '')
+  }
+
+  function clearPlanId() {
+    planId.value = ''
+  }
+
   function localError(code, message) {
     return normalizeApiError({ response: { data: { code, message } } })
   }
@@ -311,6 +325,7 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   async function cancel() {
+    clearPlanId()
     const response = await run(() => transfersApi.cancel(transferId.value))
     prepared.value = response
     clearTransferDraft()
@@ -352,6 +367,7 @@ export const useTransferStore = defineStore('transfer', () => {
 
   function reset() {
     clearTransferDraft()
+    clearPlanId()
     sessionId.value = ''
     transferId.value = ''
     candidates.value = []
@@ -383,6 +399,7 @@ export const useTransferStore = defineStore('transfer', () => {
     authentication,
     validation,
     guardianVerification,
+    planId,
     result,
     riskCleared,
     confirmationCompleted,
@@ -413,6 +430,8 @@ export const useTransferStore = defineStore('transfer', () => {
     confirm,
     authenticate,
     registerPin,
+    setPlanId,
+    clearPlanId,
     startGuardianVerification,
     verifyGuardian,
     execute,
